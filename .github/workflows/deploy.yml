@@ -20,6 +20,12 @@ jobs:
           docker swarm init
         fi
         
+    - name: Create or update network if needed
+      run: |
+        if ! docker network ls | grep -q "swecc_stack_swecc-network"; then
+          docker network create --driver overlay --attachable swecc-network
+        fi
+
     - name: Create environment files as Docker configs
       run: |
         # Remove existing configs if they exist
@@ -104,3 +110,32 @@ jobs:
         # Verify deployment
         echo "Stack deployed. Current services:"
         docker service ls
+
+    - name: Update services to use latest config
+      run: |
+        # Function to force update a service with its latest config
+        update_service_with_config() {
+          local service_name=$1
+          local config_name=$2
+
+          echo "Updating $service_name with latest $config_name config..."
+
+          # Extract environment variables from config to file
+          docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > ${service_name}_env.txt
+
+          # Update the service with the env file
+          docker service update \
+            --env-file ${service_name}_env.txt \
+            --force \
+            swecc_stack_$service_name
+
+          # Clean up
+          rm ${service_name}_env.txt
+        }
+
+        # Update all services with their configs
+        update_service_with_config "bot" "bot_env"
+        update_service_with_config "chronos" "chronos_env"
+        update_service_with_config "scheduler" "scheduler_env"
+        update_service_with_config "server" "server_env"
+        update_service_with_config "sockets" "sockets_env"
