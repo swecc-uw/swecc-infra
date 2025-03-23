@@ -1,0 +1,8 @@
+# Images to pull and run:
+# swecc-server
+# swecc-scheduler
+# swecc-bot
+# swecc-redis
+# swecc-chronos
+# swecc-sockets
+# swecc-rabbit
