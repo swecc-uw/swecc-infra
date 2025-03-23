@@ -1,8 +1,154 @@
-# Images to pull and run:
-# swecc-server
-# swecc-scheduler
-# swecc-bot
-# swecc-redis
-# swecc-chronos
-# swecc-sockets
-# swecc-rabbit
+version: '3.8'
+
+services:
+  swag:
+    image: linuxserver/swag
+    ports:
+      - "80:80"   # HTTP
+      - "443:443" # HTTPS
+    volumes:
+      - /home/ubuntu/swag/config:/config
+    environment:
+      - URL=api.swecc.org
+      - EMAIL=sweccuw@gmail.com
+      - VALIDATION=http
+    networks:
+      - swag-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  bot:
+    image: swecc/swecc-bot:latest
+    networks:
+      - swag-network
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - SWECC_SERVER=${SWECC_SERVER}
+      - ADMIN_CHANNEL=${ADMIN_CHANNEL}
+      - LC_CHANNEL_ID=${LC_CHANNEL_ID}
+      - TRANSCRIPTS_CHANNEL=${TRANSCRIPTS_CHANNEL}
+      - SWECC_API_KEY=${SWECC_API_KEY}
+      - SWECC_URL=${SWECC_URL}
+      - PREFIX_COMMAND=${PREFIX_COMMAND}
+      - SWECC_RESUME_CHANNEL=${SWECC_RESUME_CHANNEL}
+      - CALENDAR_URL=${CALENDAR_URL}
+      - AOC_LEADERBOARD_ID=${AOC_LEADERBOARD_ID}
+      - AOC_SESSION=${AOC_SESSION}
+      - AOC_LEADERBOARD_KEY=${AOC_LEADERBOARD_KEY}
+      - INTERNSHIP_CHANNEL_ID=${INTERNSHIP_CHANNEL_ID}
+      - NEW_GRAD_CHANNEL_ID=${NEW_GRAD_CHANNEL_ID}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OFF_TOPIC_CHANNEL_ID=${OFF_TOPIC_CHANNEL_ID}
+      - OFFICER_ROLE_ID=${OFFICER_ROLE_ID}
+      - VERIFIED_ROLE_ID=${VERIFIED_ROLE_ID}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  chronos:
+    image: swecc/swecc-chronos:latest
+    ports:
+      - "8002:8002"
+    networks:
+      - swag-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - chronos_data:/app
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  redis:
+    image: swecc/swecc-redis:latest
+    networks:
+      - swag-network
+    volumes:
+      - redis_data:/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  rabbit:
+    image: swecc/swecc-rabbit:latest
+    networks:
+      - swag-network
+    volumes:
+      - swecc-rabbit-data:/var/lib/rabbitmq
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  scheduler:
+    image: swecc/swecc-scheduler:latest
+    networks:
+      - swag-network
+    environment:
+      - ENV=prod
+      - SCHEDULER_API_KEY=${SCHEDULER_API_KEY}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  server:
+    image: swecc/swecc-server:latest
+    networks:
+      - swag-network
+    environment:
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - INTERNSHIP_CHANNEL_ID=${INTERNSHIP_CHANNEL_ID}
+      - NEW_GRAD_CHANNEL_ID=${NEW_GRAD_CHANNEL_ID}
+      - METRIC_SERVER_URL=${METRIC_SERVER_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  sockets:
+    image: swecc/swecc-sockets:latest
+    networks:
+      - swag-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+networks:
+  swag-network:
+    external: true
+
+volumes:
+  chronos_data:
+  redis_data:
+  swecc-rabbit-data:

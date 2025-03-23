@@ -1,0 +1,69 @@
+name: Deploy Swarm Stack
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on:
+      group: EC2
+      labels: [self-hosted, deploy]
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+      
+    - name: Initialize Swarm if needed
+      run: |
+        if ! docker info | grep -q "Swarm: active"; then
+          docker swarm init
+        fi
+        
+    - name: Deploy stack
+      run: |
+        # Create .env file with all secrets
+        echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > .env
+        echo "SWECC_SERVER=${{ secrets.SWECC_SERVER }}" >> .env
+        echo "ADMIN_CHANNEL=${{ secrets.ADMIN_CHANNEL }}" >> .env
+        echo "LC_CHANNEL_ID=${{ secrets.LC_CHANNEL_ID }}" >> .env
+        echo "TRANSCRIPTS_CHANNEL=${{ secrets.TRANSCRIPTS_CHANNEL }}" >> .env
+        echo "SWECC_API_KEY=${{ secrets.SWECC_API_KEY }}" >> .env
+        echo "SWECC_URL=${{ secrets.SWECC_URL }}" >> .env
+        echo "PREFIX_COMMAND=${{ secrets.PREFIX_COMMAND }}" >> .env
+        echo "SWECC_RESUME_CHANNEL=${{ secrets.SWECC_RESUME_CHANNEL }}" >> .env
+        echo "CALENDAR_URL=${{ secrets.CALENDAR_URL }}" >> .env
+        echo "AOC_LEADERBOARD_ID=${{ secrets.AOC_LEADERBOARD_ID }}" >> .env
+        echo "AOC_SESSION=${{ secrets.AOC_SESSION }}" >> .env
+        echo "AOC_LEADERBOARD_KEY=${{ secrets.AOC_LEADERBOARD_KEY }}" >> .env
+        echo "INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}" >> .env
+        echo "NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}" >> .env
+        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+        echo "OFF_TOPIC_CHANNEL_ID=${{ secrets.OFF_TOPIC_CHANNEL_ID }}" >> .env
+        echo "OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}" >> .env
+        echo "VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}" >> .env
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+        echo "AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}" >> .env
+        echo "SCHEDULER_API_KEY=${{ secrets.SCHEDULER_API_KEY }}" >> .env
+        echo "DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}" >> .env
+        echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+        echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+        echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+        echo "SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}" >> .env
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+        echo "METRIC_SERVER_URL=${{ secrets.METRIC_SERVER_URL }}" >> .env
+        echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+        
+        # Log in to Docker Hub for private images
+        echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+        
+        # Deploy or update the stack
+        docker stack deploy -c docker-compose.yml --with-registry-auth --prune swecc_stack
+        
+        # Verify deployment
+        echo "Stack deployed. Current services:"
+        docker service ls
