@@ -111,29 +111,39 @@ jobs:
         echo "Stack deployed. Current services:"
         docker service ls
 
-    - name: Update services to use latest config
+    - name: Update services with latest configs
       run: |
-        # Function to force update a service with its latest config
+        # Function to update a service with its latest config
         update_service_with_config() {
           local service_name=$1
           local config_name=$2
+          local service_full_name="swecc_stack_$service_name"
 
-          echo "Updating $service_name with latest $config_name config..."
+          # Check if service exists
+          if docker service ls --filter name=$service_full_name -q | grep -q .; then
+            echo "Updating $service_full_name with latest $config_name config..."
 
-          # Extract environment variables from config to file
-          docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > ${service_name}_env.txt
+            # Extract environment variables from config to file
+            docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > ${service_name}_env.txt
 
-          # Update the service with the env file
-          docker service update \
-            --env-file ${service_name}_env.txt \
-            --force \
-            swecc_stack_$service_name
+            # Update the service with the env file
+            docker service update \
+              --env-file ${service_name}_env.txt \
+              --force \
+              $service_full_name
 
-          # Clean up
-          rm ${service_name}_env.txt
+            # Clean up
+            rm ${service_name}_env.txt
+          else
+            echo "Service $service_full_name does not exist, skipping update."
+          fi
         }
 
-        # Update all services with their configs
+        # Wait for stack deployment to complete
+        echo "Waiting for stack deployment to stabilize..."
+        sleep 10
+
+        # Update services with their configs
         update_service_with_config "bot" "bot_env"
         update_service_with_config "chronos" "chronos_env"
         update_service_with_config "scheduler" "scheduler_env"
