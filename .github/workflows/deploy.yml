@@ -26,13 +26,33 @@ jobs:
           docker network create --driver overlay --attachable swecc-network
         fi
 
-    - name: Create environment files as Docker configs
+    - name: Extract current configs for comparison
       run: |
-        # Remove existing configs if they exist
-        docker config rm bot_env chronos_env scheduler_env server_env sockets_env 2>/dev/null || true
+        mkdir -p old_configs
         
-        # Create configs for each service
-        cat << EOF > bot.env
+        # Function to extract current config content
+        extract_config() {
+          local config_name=$1
+          if docker config ls --filter name=$config_name -q | grep -q .; then
+            docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > old_configs/${config_name}.txt
+          else
+            touch old_configs/${config_name}.txt
+          fi
+        }
+
+        # Extract current configs
+        extract_config "bot_env"
+        extract_config "chronos_env"
+        extract_config "scheduler_env"
+        extract_config "server_env"
+        extract_config "sockets_env"
+
+    - name: Create new environment configs
+      run: |
+        mkdir -p new_configs
+
+        # Create new config content files
+        cat << EOF > new_configs/bot_env.txt
         DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
         SWECC_SERVER=${{ secrets.SWECC_SERVER }}
         ADMIN_CHANNEL=${{ secrets.ADMIN_CHANNEL }}
@@ -53,22 +73,19 @@ jobs:
         OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
         VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
         EOF
-        docker config create bot_env bot.env
         
-        cat << EOF > chronos.env
+        cat << EOF > new_configs/chronos_env.txt
         AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
         EOF
-        docker config create chronos_env chronos.env
 
-        cat << EOF > scheduler.env
+        cat << EOF > new_configs/scheduler_env.txt
         ENV=prod
         SCHEDULER_API_KEY=${{ secrets.SCHEDULER_API_KEY }}
         EOF
-        docker config create scheduler_env scheduler.env
 
-        cat << EOF > server.env
+        cat << EOF > new_configs/server_env.txt
         DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
         DB_HOST=${{ secrets.DB_HOST }}
         DB_NAME=${{ secrets.DB_NAME }}
@@ -83,9 +100,8 @@ jobs:
         METRIC_SERVER_URL=${{ secrets.METRIC_SERVER_URL }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
         EOF
-        docker config create server_env server.env
 
-        cat << EOF > sockets.env
+        cat << EOF > new_configs/sockets_env.txt
         DB_HOST=${{ secrets.DB_HOST }}
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=${{ secrets.DB_PORT }}
@@ -93,10 +109,46 @@ jobs:
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
         EOF
-        docker config create sockets_env sockets.env
 
-        # Clean up local files
-        rm *.env
+    - name: Detect config changes and remove affected services
+      run: |
+        mkdir -p services_to_recreate
+
+        # Function to check if config has changed
+        check_config_change() {
+          local service_name=$1
+          local config_name=$2
+          local service_full_name="swecc_stack_$service_name"
+
+          # Compare old and new configs
+          if ! diff -q old_configs/${config_name}.txt new_configs/${config_name}.txt > /dev/null; then
+            echo "Config for $service_name has changed."
+
+            # Mark service for recreation
+            touch services_to_recreate/$service_name
+
+            # Remove the service if it exists
+            if docker service ls --filter name=$service_full_name -q | grep -q .; then
+              echo "Removing $service_full_name to apply config changes..."
+              docker service rm $service_full_name
+            fi
+          else
+            echo "No changes detected for $service_name config."
+          fi
+        }
+
+        # Check for config changes
+        check_config_change "bot" "bot_env"
+        check_config_change "chronos" "chronos_env"
+        check_config_change "scheduler" "scheduler_env"
+        check_config_change "server" "server_env"
+        check_config_change "sockets" "sockets_env"
+
+        # Update Docker configs
+        for config_name in bot_env chronos_env scheduler_env server_env sockets_env; do
+          docker config rm $config_name 2>/dev/null || true
+          docker config create $config_name new_configs/${config_name}.txt
+        done
 
     - name: Log in to Docker Hub for private images
       run: |
@@ -111,41 +163,9 @@ jobs:
         echo "Stack deployed. Current services:"
         docker service ls
 
-    - name: Update services with latest configs
+    - name: Clean up
       run: |
-        # Function to update a service with its latest config
-        update_service_with_config() {
-          local service_name=$1
-          local config_name=$2
-          local service_full_name="swecc_stack_$service_name"
-
-          # Check if service exists
-          if docker service ls --filter name=$service_full_name -q | grep -q .; then
-            echo "Updating $service_full_name with latest $config_name config..."
-
-            # Extract environment variables from config to file
-            docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > ${service_name}_env.txt
-
-            # Update the service with the env file
-            docker service update \
-              --env-file ${service_name}_env.txt \
-              --force \
-              $service_full_name
-
-            # Clean up
-            rm ${service_name}_env.txt
-          else
-            echo "Service $service_full_name does not exist, skipping update."
-          fi
-        }
-
-        # Wait for stack deployment to complete
-        echo "Waiting for stack deployment to stabilize..."
-        sleep 10
-
-        # Update services with their configs
-        update_service_with_config "bot" "bot_env"
-        update_service_with_config "chronos" "chronos_env"
-        update_service_with_config "scheduler" "scheduler_env"
-        update_service_with_config "server" "server_env"
-        update_service_with_config "sockets" "sockets_env"
+        # Remove temporary directories
+        rm -rf old_configs
+        rm -rf new_configs
+        rm -rf services_to_recreate
