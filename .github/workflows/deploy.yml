@@ -59,7 +59,7 @@ jobs:
         echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
         
         # Log in to Docker Hub for private images
-        echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+        echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
         
         # Deploy or update the stack
         docker stack deploy -c docker-compose.yml --with-registry-auth --prune swecc_stack
