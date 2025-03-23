@@ -62,7 +62,7 @@ jobs:
         echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
         
         # Deploy or update the stack
-        docker stack deploy -c docker-compose.yml --with-registry-auth --prune swecc_stack
+        docker stack deploy -c stack.yml --with-registry-auth --prune swecc_stack
         
         # Verify deployment
         echo "Stack deployed. Current services:"
