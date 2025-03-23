@@ -26,26 +26,9 @@ services:
     image: swecc/swecc-bot:latest
     networks:
       - swecc-network
-    environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - SWECC_SERVER=${SWECC_SERVER}
-      - ADMIN_CHANNEL=${ADMIN_CHANNEL}
-      - LC_CHANNEL_ID=${LC_CHANNEL_ID}
-      - TRANSCRIPTS_CHANNEL=${TRANSCRIPTS_CHANNEL}
-      - SWECC_API_KEY=${SWECC_API_KEY}
-      - SWECC_URL=${SWECC_URL}
-      - PREFIX_COMMAND=${PREFIX_COMMAND}
-      - SWECC_RESUME_CHANNEL=${SWECC_RESUME_CHANNEL}
-      - CALENDAR_URL=${CALENDAR_URL}
-      - AOC_LEADERBOARD_ID=${AOC_LEADERBOARD_ID}
-      - AOC_SESSION=${AOC_SESSION}
-      - AOC_LEADERBOARD_KEY=${AOC_LEADERBOARD_KEY}
-      - INTERNSHIP_CHANNEL_ID=${INTERNSHIP_CHANNEL_ID}
-      - NEW_GRAD_CHANNEL_ID=${NEW_GRAD_CHANNEL_ID}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OFF_TOPIC_CHANNEL_ID=${OFF_TOPIC_CHANNEL_ID}
-      - OFFICER_ROLE_ID=${OFFICER_ROLE_ID}
-      - VERIFIED_ROLE_ID=${VERIFIED_ROLE_ID}
+    configs:
+      - source: bot_env
+        target: /app/.env
     deploy:
       replicas: 1
       restart_policy:
@@ -60,10 +43,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - chronos_data:/app
-    environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+    configs:
+      - source: chronos_env
+        target: /app/.env
     deploy:
       replicas: 1
       restart_policy:
@@ -95,9 +77,9 @@ services:
     image: swecc/swecc-scheduler:latest
     networks:
       - swecc-network
-    environment:
-      - ENV=prod
-      - SCHEDULER_API_KEY=${SCHEDULER_API_KEY}
+    configs:
+      - source: scheduler_env
+        target: /app/.env
     deploy:
       replicas: 1
       restart_policy:
@@ -107,20 +89,9 @@ services:
     image: swecc/swecc-server:latest
     networks:
       - swecc-network
-    environment:
-      - DJANGO_DEBUG=${DJANGO_DEBUG}
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - INTERNSHIP_CHANNEL_ID=${INTERNSHIP_CHANNEL_ID}
-      - NEW_GRAD_CHANNEL_ID=${NEW_GRAD_CHANNEL_ID}
-      - METRIC_SERVER_URL=${METRIC_SERVER_URL}
-      - JWT_SECRET=${JWT_SECRET}
+    configs:
+      - source: server_env
+        target: /app/.env
     deploy:
       replicas: 1
       restart_policy:
@@ -132,13 +103,9 @@ services:
       - swecc-network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
+    configs:
+      - source: sockets_env
+        target: /app/.env
     deploy:
       replicas: 1
       restart_policy:
@@ -153,3 +120,15 @@ volumes:
   chronos_data:
   redis_data:
   swecc-rabbit-data:
+
+configs:
+  bot_env:
+    external: true
+  chronos_env:
+    external: true
+  scheduler_env:
+    external: true
+  server_env:
+    external: true
+  sockets_env:
+    external: true
