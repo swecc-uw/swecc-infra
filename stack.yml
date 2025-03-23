@@ -13,7 +13,7 @@ services:
       - EMAIL=sweccuw@gmail.com
       - VALIDATION=http
     networks:
-      - swag-network
+      - swecc-network
     deploy:
       replicas: 1
       placement:
@@ -25,7 +25,7 @@ services:
   bot:
     image: swecc/swecc-bot:latest
     networks:
-      - swag-network
+      - swecc-network
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - SWECC_SERVER=${SWECC_SERVER}
@@ -56,7 +56,7 @@ services:
     ports:
       - "8002:8002"
     networks:
-      - swag-network
+      - swecc-network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - chronos_data:/app
@@ -72,7 +72,7 @@ services:
   redis:
     image: swecc/swecc-redis:latest
     networks:
-      - swag-network
+      - swecc-network
     volumes:
       - redis_data:/data
     deploy:
@@ -83,7 +83,7 @@ services:
   rabbit:
     image: swecc/swecc-rabbit:latest
     networks:
-      - swag-network
+      - swecc-network
     volumes:
       - swecc-rabbit-data:/var/lib/rabbitmq
     deploy:
@@ -94,7 +94,7 @@ services:
   scheduler:
     image: swecc/swecc-scheduler:latest
     networks:
-      - swag-network
+      - swecc-network
     environment:
       - ENV=prod
       - SCHEDULER_API_KEY=${SCHEDULER_API_KEY}
@@ -106,7 +106,7 @@ services:
   server:
     image: swecc/swecc-server:latest
     networks:
-      - swag-network
+      - swecc-network
     environment:
       - DJANGO_DEBUG=${DJANGO_DEBUG}
       - DB_HOST=${DB_HOST}
@@ -129,7 +129,7 @@ services:
   sockets:
     image: swecc/swecc-sockets:latest
     networks:
-      - swag-network
+      - swecc-network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -145,8 +145,9 @@ services:
         condition: any
 
 networks:
-  swag-network:
-    external: true
+  swecc-network:
+    driver: overlay
+    attachable: true
 
 volumes:
   chronos_data:
