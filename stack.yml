@@ -1,26 +1,20 @@
 version: '3.8'
 
 services:
-  swag:
-    image: linuxserver/swag
-    ports:
-      - "80:80"   # HTTP
-      - "443:443" # HTTPS
+  nginx:
+    image: nginx:stable-alpine
     volumes:
-      - /home/ubuntu/swag/config:/config
-    environment:
-      - URL=api.swecc.org
-      - EMAIL=sweccuw@gmail.com
-      - VALIDATION=http
-    networks:
-      - swecc-network
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /usr/share/nginx/html:/usr/share/nginx/html
+      - ${PWD}/nginx.conf:/etc/nginx/nginx.conf
     deploy:
-      replicas: 1
+      mode: global
       placement:
         constraints:
           - node.role == manager
-      restart_policy:
-        condition: any
+    ports:
+      - 80:80
+      - 443:443
 
   bot:
     image: swecc/swecc-bot:latest
