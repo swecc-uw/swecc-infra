@@ -19,6 +19,9 @@ jobs:
     # <NEW_CONFIG>
     # if adding new config, add step to create file here
 
+    # <EXISTING_CONFIG>
+    # if updating existing config, add new secrets to corresponding config file
+
     - name: Create Bot Config
       run: |
         mkdir -p configs
