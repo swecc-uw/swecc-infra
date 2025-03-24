@@ -1,12 +1,10 @@
-name: Sync Configs
+name: Sync Secrets to Docker Configs
 
 on:
-  # Run when secrets are updated (unfortunately GitHub doesn't have a direct trigger for this)
-  # So we'll use scheduled runs and manual triggers
   schedule:
-    - cron: '0 */6 * * *'  # Run every 6 hours
+    - cron: '0 */6 * * *'  # every 6 hours
   workflow_dispatch:
-    # Allow manual triggering
+    # trigger actions manually
 
 jobs:
   sync-configs:
@@ -17,6 +15,9 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v2
+
+    # <NEW_CONFIG>
+    # if adding new config, add step to create file here
 
     - name: Create Bot Config
       run: |
@@ -91,7 +92,6 @@ jobs:
       run: |
         mkdir -p old_configs
 
-        # Function to extract current config content
         extract_config() {
           local config_name=$1
           if docker config ls --filter name=$config_name -q | grep -q .; then
@@ -101,7 +101,9 @@ jobs:
           fi
         }
 
-        # Extract current configs
+        # <NEW_CONFIG>
+        # if adding new config, add call to extract_config here
+
         extract_config "bot_env"
         extract_config "chronos_env"
         extract_config "scheduler_env"
@@ -111,26 +113,20 @@ jobs:
     - name: Detect changes and update configs
       id: config-changes
       run: |
-        # Create a file to store which services need redeployment
         echo "SERVICES_TO_REDEPLOY=" > services_to_redeploy.txt
 
-        # Function to check if config has changed and update it
         check_and_update_config() {
           local config_name=$1
 
-          # Compare old and new configs
           if ! diff -q old_configs/${config_name}.txt configs/${config_name}.txt > /dev/null; then
             echo "${config_name} has changed, updating Docker config..."
 
-            # Remove old config if it exists
             if docker config ls --filter name=$config_name -q | grep -q .; then
               docker config rm $config_name
             fi
 
-            # Create new config
             docker config create $config_name configs/${config_name}.txt
 
-            # Add to services to redeploy
             if grep -q "SERVICES_TO_REDEPLOY=" services_to_redeploy.txt; then
               sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name}/" services_to_redeploy.txt
             else
@@ -144,14 +140,15 @@ jobs:
           fi
         }
 
-        # Check and update each config
+        # <NEW_CONFIG>
+        # if adding new config, add call to check_and_update_config here
+
         check_and_update_config "bot_env"
         check_and_update_config "chronos_env"
         check_and_update_config "scheduler_env"
         check_and_update_config "server_env"
         check_and_update_config "sockets_env"
 
-        # Read the services to redeploy
         source services_to_redeploy.txt
         if [ -n "$SERVICES_TO_REDEPLOY" ]; then
           echo "Services to redeploy: $SERVICES_TO_REDEPLOY"
@@ -162,51 +159,14 @@ jobs:
           echo "CONFIG_CHANGED=false" >> $GITHUB_OUTPUT
         fi
 
+    # TODO:
+    # Trigger workflows
+
     # - name: Trigger Bot Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, 'bot_env')
+    #   if: contains(steps.config-changes.outputs.SERVICES, {config name})
     #   run: |
     #     curl -X POST \
     #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
     #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/swecc-bot/actions/workflows/auto_deploy.yaml/dispatches \
+    #       https://api.github.com/repos/swecc-uw/{repo name}/actions/workflows/{action name}/dispatches \
     #       -d '{"ref":"main"}'
-
-    # - name: Trigger Chronos Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, 'chronos_env')
-    #   run: |
-    #     curl -X POST \
-    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-    #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/swecc-chronos/actions/workflows/docker-image.yml/dispatches \
-    #       -d '{"ref":"main"}'
-
-    # - name: Trigger Scheduler Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, 'scheduler_env')
-    #   run: |
-    #     curl -X POST \
-    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-    #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/swecc-scheduler/actions/workflows/github-actions-ec2.yml/dispatches \
-    #       -d '{"ref":"main"}'
-
-    # - name: Trigger Server Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, 'server_env')
-    #   run: |
-    #     curl -X POST \
-    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-    #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/swecc-server/actions/workflows/github-actions-ec2.yml/dispatches \
-    #       -d '{"ref":"main"}'
-
-    # - name: Trigger Sockets Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, 'sockets_env')
-    #   run: |
-    #     curl -X POST \
-    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-    #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/swecc-sockets/actions/workflows/deploy.yml/dispatches \
-    #       -d '{"ref":"main"}'
-
-    # - name: Clean up
-    #   run: |
-    #     rm -rf old_configs configs services_to_redeploy.txt
