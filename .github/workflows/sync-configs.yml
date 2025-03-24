@@ -1,0 +1,212 @@
+name: Sync Secrets to Docker Configs
+
+on:
+  # Run when secrets are updated (unfortunately GitHub doesn't have a direct trigger for this)
+  # So we'll use scheduled runs and manual triggers
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  sync-configs:
+    runs-on:
+      group: EC2
+      labels: [self-hosted, deploy]
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Create Bot Config
+      run: |
+        mkdir -p configs
+        cat > configs/bot_env.txt << EOF
+        DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+        SWECC_SERVER=${{ secrets.SWECC_SERVER }}
+        ADMIN_CHANNEL=${{ secrets.ADMIN_CHANNEL }}
+        LC_CHANNEL_ID=${{ secrets.LC_CHANNEL_ID }}
+        TRANSCRIPTS_CHANNEL=${{ secrets.TRANSCRIPTS_CHANNEL }}
+        SWECC_API_KEY=${{ secrets.SWECC_API_KEY }}
+        SWECC_URL=${{ secrets.SWECC_URL }}
+        PREFIX_COMMAND=${{ secrets.PREFIX_COMMAND }}
+        SWECC_RESUME_CHANNEL=${{ secrets.SWECC_RESUME_CHANNEL }}
+        CALENDAR_URL=${{ secrets.CALENDAR_URL }}
+        AOC_LEADERBOARD_ID=${{ secrets.AOC_LEADERBOARD_ID }}
+        AOC_SESSION=${{ secrets.AOC_SESSION }}
+        AOC_LEADERBOARD_KEY=${{ secrets.AOC_LEADERBOARD_KEY }}
+        INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
+        NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
+        GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+        OFF_TOPIC_CHANNEL_ID=${{ secrets.OFF_TOPIC_CHANNEL_ID }}
+        OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
+        VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
+        EOF
+
+    - name: Create Chronos Config
+      run: |
+        cat > configs/chronos_env.txt << EOF
+        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
+        EOF
+
+    - name: Create Scheduler Config
+      run: |
+        cat > configs/scheduler_env.txt << EOF
+        ENV=prod
+        SCHEDULER_API_KEY=${{ secrets.SCHEDULER_API_KEY }}
+        EOF
+
+    - name: Create Server Config
+      run: |
+        cat > configs/server_env.txt << EOF
+        DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
+        DB_HOST=${{ secrets.DB_HOST }}
+        DB_NAME=${{ secrets.DB_NAME }}
+        DB_PORT=${{ secrets.DB_PORT }}
+        DB_USER=${{ secrets.DB_USER }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
+        SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+        INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
+        NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
+        METRIC_SERVER_URL=${{ secrets.METRIC_SERVER_URL }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        EOF
+
+    - name: Create Sockets Config
+      run: |
+        cat > configs/sockets_env.txt << EOF
+        DB_HOST=${{ secrets.DB_HOST }}
+        DB_NAME=${{ secrets.DB_NAME }}
+        DB_PORT=${{ secrets.DB_PORT }}
+        DB_USER=${{ secrets.DB_USER }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        EOF
+
+    - name: Extract current configs for comparison
+      run: |
+        mkdir -p old_configs
+
+        # Function to extract current config content
+        extract_config() {
+          local config_name=$1
+          if docker config ls --filter name=$config_name -q | grep -q .; then
+            docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > old_configs/${config_name}.txt
+          else
+            cat /dev/null > old_configs/${config_name}.txt
+          fi
+        }
+
+        # Extract current configs
+        extract_config "bot_env"
+        extract_config "chronos_env"
+        extract_config "scheduler_env"
+        extract_config "server_env"
+        extract_config "sockets_env"
+
+    - name: Detect changes and update configs
+      id: config-changes
+      run: |
+        # Create a file to store which services need redeployment
+        echo "SERVICES_TO_REDEPLOY=" > services_to_redeploy.txt
+
+        # Function to check if config has changed and update it
+        check_and_update_config() {
+          local config_name=$1
+
+          # Compare old and new configs
+          if ! diff -q old_configs/${config_name}.txt configs/${config_name}.txt > /dev/null; then
+            echo "${config_name} has changed, updating Docker config..."
+
+            # Remove old config if it exists
+            if docker config ls --filter name=$config_name -q | grep -q .; then
+              docker config rm $config_name
+            fi
+
+            # Create new config
+            docker config create $config_name configs/${config_name}.txt
+
+            # Add to services to redeploy
+            if grep -q "SERVICES_TO_REDEPLOY=" services_to_redeploy.txt; then
+              sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name}/" services_to_redeploy.txt
+            else
+              sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name},/" services_to_redeploy.txt
+            fi
+
+            return 0
+          else
+            echo "No changes detected for ${config_name}"
+            return 1
+          fi
+        }
+
+        # Check and update each config
+        check_and_update_config "bot_env"
+        check_and_update_config "chronos_env"
+        check_and_update_config "scheduler_env"
+        check_and_update_config "server_env"
+        check_and_update_config "sockets_env"
+
+        # Read the services to redeploy
+        source services_to_redeploy.txt
+        if [ -n "$SERVICES_TO_REDEPLOY" ]; then
+          echo "Services to redeploy: $SERVICES_TO_REDEPLOY"
+          echo "CONFIG_CHANGED=true" >> $GITHUB_OUTPUT
+          echo "SERVICES=$SERVICES_TO_REDEPLOY" >> $GITHUB_OUTPUT
+        else
+          echo "No config changes detected"
+          echo "CONFIG_CHANGED=false" >> $GITHUB_OUTPUT
+        fi
+
+    # - name: Trigger Bot Workflow
+    #   if: contains(steps.config-changes.outputs.SERVICES, 'bot_env')
+    #   run: |
+    #     curl -X POST \
+    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+    #       -H "Accept: application/vnd.github.v3+json" \
+    #       https://api.github.com/repos/swecc-uw/swecc-bot/actions/workflows/auto_deploy.yaml/dispatches \
+    #       -d '{"ref":"main"}'
+
+    # - name: Trigger Chronos Workflow
+    #   if: contains(steps.config-changes.outputs.SERVICES, 'chronos_env')
+    #   run: |
+    #     curl -X POST \
+    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+    #       -H "Accept: application/vnd.github.v3+json" \
+    #       https://api.github.com/repos/swecc-uw/swecc-chronos/actions/workflows/docker-image.yml/dispatches \
+    #       -d '{"ref":"main"}'
+
+    # - name: Trigger Scheduler Workflow
+    #   if: contains(steps.config-changes.outputs.SERVICES, 'scheduler_env')
+    #   run: |
+    #     curl -X POST \
+    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+    #       -H "Accept: application/vnd.github.v3+json" \
+    #       https://api.github.com/repos/swecc-uw/swecc-scheduler/actions/workflows/github-actions-ec2.yml/dispatches \
+    #       -d '{"ref":"main"}'
+
+    # - name: Trigger Server Workflow
+    #   if: contains(steps.config-changes.outputs.SERVICES, 'server_env')
+    #   run: |
+    #     curl -X POST \
+    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+    #       -H "Accept: application/vnd.github.v3+json" \
+    #       https://api.github.com/repos/swecc-uw/swecc-server/actions/workflows/github-actions-ec2.yml/dispatches \
+    #       -d '{"ref":"main"}'
+
+    # - name: Trigger Sockets Workflow
+    #   if: contains(steps.config-changes.outputs.SERVICES, 'sockets_env')
+    #   run: |
+    #     curl -X POST \
+    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+    #       -H "Accept: application/vnd.github.v3+json" \
+    #       https://api.github.com/repos/swecc-uw/swecc-sockets/actions/workflows/deploy.yml/dispatches \
+    #       -d '{"ref":"main"}'
+
+    # - name: Clean up
+    #   run: |
+    #     rm -rf old_configs configs services_to_redeploy.txt
