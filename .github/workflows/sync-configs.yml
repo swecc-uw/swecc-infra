@@ -1,4 +1,4 @@
-name: Sync Secrets to Docker Configs
+name: Sync Configs
 
 on:
   # Run when secrets are updated (unfortunately GitHub doesn't have a direct trigger for this)
