@@ -2,7 +2,7 @@ name: Sync Secrets to Docker Configs
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # every 6 hours
+    - cron: '0 */6 * * *' # every 6 hours
   workflow_dispatch:
     # trigger actions manually
 
@@ -11,156 +11,158 @@ jobs:
     runs-on:
       group: EC2
       labels: [self-hosted, deploy]
-    
+
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-    # <NEW_CONFIG>
-    # if adding new config, add step to create file here
+      # <NEW_CONFIG>
+      # if adding new config, add step to create file here
 
-    # <EXISTING_CONFIG>
-    # if updating existing config, add new secrets to corresponding config file
+      # <EXISTING_CONFIG>
+      # if updating existing config, add new secrets to corresponding config file
 
-    - name: Create Bot Config
-      run: |
-        mkdir -p configs
-        cat > configs/bot_env.txt << EOF
-        DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
-        SWECC_SERVER=${{ secrets.SWECC_SERVER }}
-        ADMIN_CHANNEL=${{ secrets.ADMIN_CHANNEL }}
-        LC_CHANNEL_ID=${{ secrets.LC_CHANNEL_ID }}
-        TRANSCRIPTS_CHANNEL=${{ secrets.TRANSCRIPTS_CHANNEL }}
-        SWECC_API_KEY=${{ secrets.SWECC_API_KEY }}
-        SWECC_URL=${{ secrets.SWECC_URL }}
-        PREFIX_COMMAND=${{ secrets.PREFIX_COMMAND }}
-        SWECC_RESUME_CHANNEL=${{ secrets.SWECC_RESUME_CHANNEL }}
-        CALENDAR_URL=${{ secrets.CALENDAR_URL }}
-        AOC_LEADERBOARD_ID=${{ secrets.AOC_LEADERBOARD_ID }}
-        AOC_SESSION=${{ secrets.AOC_SESSION }}
-        AOC_LEADERBOARD_KEY=${{ secrets.AOC_LEADERBOARD_KEY }}
-        INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
-        NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
-        GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-        OFF_TOPIC_CHANNEL_ID=${{ secrets.OFF_TOPIC_CHANNEL_ID }}
-        OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
-        VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
-        EOF
+      - name: Create Bot Config
+        run: |
+          mkdir -p configs
+          cat > configs/bot_env.txt << EOF
+          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+          SWECC_SERVER=${{ secrets.SWECC_SERVER }}
+          ADMIN_CHANNEL=${{ secrets.ADMIN_CHANNEL }}
+          LC_CHANNEL_ID=${{ secrets.LC_CHANNEL_ID }}
+          TRANSCRIPTS_CHANNEL=${{ secrets.TRANSCRIPTS_CHANNEL }}
+          SWECC_API_KEY=${{ secrets.SWECC_API_KEY }}
+          SWECC_URL=${{ secrets.SWECC_URL }}
+          PREFIX_COMMAND=${{ secrets.PREFIX_COMMAND }}
+          SWECC_RESUME_CHANNEL=${{ secrets.SWECC_RESUME_CHANNEL }}
+          CALENDAR_URL=${{ secrets.CALENDAR_URL }}
+          AOC_LEADERBOARD_ID=${{ secrets.AOC_LEADERBOARD_ID }}
+          AOC_SESSION=${{ secrets.AOC_SESSION }}
+          AOC_LEADERBOARD_KEY=${{ secrets.AOC_LEADERBOARD_KEY }}
+          INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
+          NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          OFF_TOPIC_CHANNEL_ID=${{ secrets.OFF_TOPIC_CHANNEL_ID }}
+          OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
+          VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
+          EOF
 
-    - name: Create Chronos Config
-      run: |
-        cat > configs/chronos_env.txt << EOF
-        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
-        EOF
+      - name: Create Chronos Config
+        run: |
+          cat > configs/chronos_env.txt << EOF
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
+          EOF
 
-    - name: Create Scheduler Config
-      run: |
-        cat > configs/scheduler_env.txt << EOF
-        ENV=prod
-        SCHEDULER_API_KEY=${{ secrets.SCHEDULER_API_KEY }}
-        EOF
+      - name: Create Scheduler Config
+        run: |
+          cat > configs/scheduler_env.txt << EOF
+          ENV=prod
+          SCHEDULER_API_KEY=${{ secrets.SCHEDULER_API_KEY }}
+          EOF
 
-    - name: Create Server Config
-      run: |
-        cat > configs/server_env.txt << EOF
-        DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_NAME=${{ secrets.DB_NAME }}
-        DB_PORT=${{ secrets.DB_PORT }}
-        DB_USER=${{ secrets.DB_USER }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
-        SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
-        INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
-        NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
-        METRIC_SERVER_URL=${{ secrets.METRIC_SERVER_URL }}
-        JWT_SECRET=${{ secrets.JWT_SECRET }}
-        EOF
+      - name: Create Server Config
+        run: |
+          cat > configs/server_env.txt << EOF
+          DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          INTERNSHIP_CHANNEL_ID=${{ secrets.INTERNSHIP_CHANNEL_ID }}
+          NEW_GRAD_CHANNEL_ID=${{ secrets.NEW_GRAD_CHANNEL_ID }}
+          METRIC_SERVER_URL=${{ secrets.METRIC_SERVER_URL }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}  
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EOF
 
-    - name: Create Sockets Config
-      run: |
-        cat > configs/sockets_env.txt << EOF
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_NAME=${{ secrets.DB_NAME }}
-        DB_PORT=${{ secrets.DB_PORT }}
-        DB_USER=${{ secrets.DB_USER }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        JWT_SECRET=${{ secrets.JWT_SECRET }}
-        EOF
+      - name: Create Sockets Config
+        run: |
+          cat > configs/sockets_env.txt << EOF
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          EOF
 
-    - name: Extract current configs for comparison
-      run: |
-        mkdir -p old_configs
+      - name: Extract current configs for comparison
+        run: |
+          mkdir -p old_configs
 
-        extract_config() {
-          local config_name=$1
-          if docker config ls --filter name=$config_name -q | grep -q .; then
-            docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > old_configs/${config_name}.txt
-          else
-            cat /dev/null > old_configs/${config_name}.txt
-          fi
-        }
-
-        # <NEW_CONFIG>
-        # if adding new config, add call to extract_config here
-
-        extract_config "bot_env"
-        extract_config "chronos_env"
-        extract_config "scheduler_env"
-        extract_config "server_env"
-        extract_config "sockets_env"
-
-    - name: Detect changes and update configs
-      id: config-changes
-      run: |
-        echo "SERVICES_TO_REDEPLOY=" > services_to_redeploy.txt
-
-        check_and_update_config() {
-          local config_name=$1
-
-          if ! diff -q old_configs/${config_name}.txt configs/${config_name}.txt > /dev/null; then
-            echo "${config_name} has changed, updating Docker config..."
-
+          extract_config() {
+            local config_name=$1
             if docker config ls --filter name=$config_name -q | grep -q .; then
-              docker config rm $config_name
-            fi
-
-            docker config create $config_name configs/${config_name}.txt
-
-            if grep -q "SERVICES_TO_REDEPLOY=" services_to_redeploy.txt; then
-              sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name}/" services_to_redeploy.txt
+              docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > old_configs/${config_name}.txt
             else
-              sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name},/" services_to_redeploy.txt
+              cat /dev/null > old_configs/${config_name}.txt
             fi
+          }
 
-            return 0
+          # <NEW_CONFIG>
+          # if adding new config, add call to extract_config here
+
+          extract_config "bot_env"
+          extract_config "chronos_env"
+          extract_config "scheduler_env"
+          extract_config "server_env"
+          extract_config "sockets_env"
+
+      - name: Detect changes and update configs
+        id: config-changes
+        run: |
+          echo "SERVICES_TO_REDEPLOY=" > services_to_redeploy.txt
+
+          check_and_update_config() {
+            local config_name=$1
+
+            if ! diff -q old_configs/${config_name}.txt configs/${config_name}.txt > /dev/null; then
+              echo "${config_name} has changed, updating Docker config..."
+
+              if docker config ls --filter name=$config_name -q | grep -q .; then
+                docker config rm $config_name
+              fi
+
+              docker config create $config_name configs/${config_name}.txt
+
+              if grep -q "SERVICES_TO_REDEPLOY=" services_to_redeploy.txt; then
+                sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name}/" services_to_redeploy.txt
+              else
+                sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name},/" services_to_redeploy.txt
+              fi
+
+              return 0
+            else
+              echo "No changes detected for ${config_name}"
+              return 1
+            fi
+          }
+
+          # <NEW_CONFIG>
+          # if adding new config, add call to check_and_update_config here
+
+          check_and_update_config "bot_env"
+          check_and_update_config "chronos_env"
+          check_and_update_config "scheduler_env"
+          check_and_update_config "server_env"
+          check_and_update_config "sockets_env"
+
+          source services_to_redeploy.txt
+          if [ -n "$SERVICES_TO_REDEPLOY" ]; then
+            echo "Services to redeploy: $SERVICES_TO_REDEPLOY"
+            echo "CONFIG_CHANGED=true" >> $GITHUB_OUTPUT
+            echo "SERVICES=$SERVICES_TO_REDEPLOY" >> $GITHUB_OUTPUT
           else
-            echo "No changes detected for ${config_name}"
-            return 1
+            echo "No config changes detected"
+            echo "CONFIG_CHANGED=false" >> $GITHUB_OUTPUT
           fi
-        }
-
-        # <NEW_CONFIG>
-        # if adding new config, add call to check_and_update_config here
-
-        check_and_update_config "bot_env"
-        check_and_update_config "chronos_env"
-        check_and_update_config "scheduler_env"
-        check_and_update_config "server_env"
-        check_and_update_config "sockets_env"
-
-        source services_to_redeploy.txt
-        if [ -n "$SERVICES_TO_REDEPLOY" ]; then
-          echo "Services to redeploy: $SERVICES_TO_REDEPLOY"
-          echo "CONFIG_CHANGED=true" >> $GITHUB_OUTPUT
-          echo "SERVICES=$SERVICES_TO_REDEPLOY" >> $GITHUB_OUTPUT
-        else
-          echo "No config changes detected"
-          echo "CONFIG_CHANGED=false" >> $GITHUB_OUTPUT
-        fi
 
     # TODO:
     # Trigger workflows
