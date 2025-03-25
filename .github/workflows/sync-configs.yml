@@ -106,35 +106,30 @@ jobs:
             local input_file=$1
             local output_file=$2
 
-            # Create a copy of the original file if it doesn't exist
             if [ ! -f "${input_file}.original" ]; then
               cp "$input_file" "${input_file}.original"
             fi
 
-            # Apply consistent preprocessing: remove empty lines, strip whitespace, sort
+            # remove empty lines, strip whitespace, sort
             grep '=' "$input_file" | grep -v '^[[:space:]]*$' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort > "$output_file"
           }
 
           extract_config() {
             local config_name=$1
             if docker config ls --filter name=$config_name -q | grep -q .; then
-              # Extract config data using the specified command
               docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > "old_configs/${config_name}.raw"
-              # Normalize the extracted config
               normalize_config "old_configs/${config_name}.raw" "normalized_configs/old_${config_name}.txt"
             else
               touch "normalized_configs/old_${config_name}.txt"
             fi
           }
 
-          # Extract and normalize old configs
           extract_config "bot_env"
           extract_config "chronos_env"
           extract_config "scheduler_env"
           extract_config "server_env"
           extract_config "sockets_env"
 
-          # Normalize new configs
           for config in configs/*.txt; do
             filename=$(basename "$config")
             normalize_config "$config" "normalized_configs/new_${filename}"
@@ -187,6 +182,49 @@ jobs:
           else
             echo "No config changes detected"
             echo "CONFIG_CHANGED=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Service Workflows
+        if: steps.config-changes.outputs.CONFIG_CHANGED == 'true'
+        run: |
+          trigger_workflow() {
+            local config_name=$1
+            local repo=$2
+            local workflow=$3
+
+            echo "Triggering workflow with new config: $config_name in repository $repo using workflow $workflow"
+
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$repo/actions/workflows/$workflow/dispatches" \
+              -d '{"ref":"main"}'
+
+            # avoid rate limiting
+            sleep 2
+          }
+
+          CHANGED_SERVICES="${{ steps.config-changes.outputs.SERVICES }}"
+
+          # TODO(elimelt): update workflow names
+          if [[ "$CHANGED_SERVICES" == *"bot_env"* ]]; then
+            trigger_workflow "bot_env" "swecc-uw/swecc-bot" "auto_deploy.yaml"
+          fi
+
+          if [[ "$CHANGED_SERVICES" == *"chronos_env"* ]]; then
+            trigger_workflow "chronos_env" "swecc-uw/swecc-chronos" "deploy.yml"
+          fi
+
+          if [[ "$CHANGED_SERVICES" == *"scheduler_env"* ]]; then
+            trigger_workflow "scheduler_env" "swecc-uw/swecc-scheduler" "deploy.yml"
+          fi
+
+          if [[ "$CHANGED_SERVICES" == *"server_env"* ]]; then
+            trigger_workflow "server_env" "swecc-uw/swecc-server" "github-actions-ec2.yml"
+          fi
+
+          if [[ "$CHANGED_SERVICES" == *"sockets_env"* ]]; then
+            trigger_workflow "sockets_env" "swecc-uw/swecc-sockets" "deploy.yml"
           fi
     # TODO:
     # Trigger workflows
