@@ -118,8 +118,8 @@ jobs:
           extract_config() {
             local config_name=$1
             if docker config ls --filter name=$config_name -q | grep -q .; then
-              # Extract config data to a temporary file
-              docker config inspect $config_name --format '{{.Spec.Data}}' | base64 -d > "old_configs/${config_name}.raw"
+              # Extract config data using the specified command
+              docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > "old_configs/${config_name}.raw"
               # Normalize the extracted config
               normalize_config "old_configs/${config_name}.raw" "normalized_configs/old_${config_name}.txt"
             else
@@ -154,7 +154,6 @@ jobs:
             # Use diff with no output for exact comparison
             if diff -q "$old_normalized" "$new_normalized" > /dev/null; then
               echo "No changes detected for ${config_name}"
-              return 1
             else
               echo "${config_name} has changed, updating Docker config..."
               echo "Differences found:"
@@ -171,7 +170,6 @@ jobs:
               else
                 sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name},/" services_to_redeploy.txt
               fi
-              return 0
             fi
           }
 
