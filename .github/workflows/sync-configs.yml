@@ -5,6 +5,9 @@ on:
     - cron: '0 */6 * * *' # every 6 hours
   workflow_dispatch:
     # trigger actions manually
+  push:
+    branches:
+      - main # run on PR merge to main
 
 jobs:
   sync-configs:
