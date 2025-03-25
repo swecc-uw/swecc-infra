@@ -208,7 +208,7 @@ jobs:
 
           # TODO(elimelt): update workflow names
           if [[ "$CHANGED_SERVICES" == *"bot_env"* ]]; then
-            trigger_workflow "bot_env" "swecc-uw/swecc-bot" "auto_deploy.yaml"
+            trigger_workflow "bot_env" "swecc-uw/swecc-bot" "deploy.yaml"
           fi
 
           if [[ "$CHANGED_SERVICES" == *"chronos_env"* ]]; then
@@ -220,20 +220,9 @@ jobs:
           fi
 
           if [[ "$CHANGED_SERVICES" == *"server_env"* ]]; then
-            trigger_workflow "server_env" "swecc-uw/swecc-server" "github-actions-ec2.yml"
+            trigger_workflow "server_env" "swecc-uw/swecc-server" "deploy.yml"
           fi
 
           if [[ "$CHANGED_SERVICES" == *"sockets_env"* ]]; then
             trigger_workflow "sockets_env" "swecc-uw/swecc-sockets" "deploy.yml"
           fi
-    # TODO:
-    # Trigger workflows
-
-    # - name: Trigger Bot Workflow
-    #   if: contains(steps.config-changes.outputs.SERVICES, {config name})
-    #   run: |
-    #     curl -X POST \
-    #       -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
-    #       -H "Accept: application/vnd.github.v3+json" \
-    #       https://api.github.com/repos/swecc-uw/{repo name}/actions/workflows/{action name}/dispatches \
-    #       -d '{"ref":"main"}'
