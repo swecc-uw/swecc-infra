@@ -1,4 +1,4 @@
-name: Sync Secrets to Docker Configs
+name: Sync Docker Configs
 
 on:
   schedule:
@@ -101,20 +101,24 @@ jobs:
           extract_config() {
             local config_name=$1
             if docker config ls --filter name=$config_name -q | grep -q .; then
-              docker config inspect $config_name --pretty | sed -n '/Data:/,$ p' | sed '1d' > old_configs/${config_name}.txt
+              docker config inspect $config_name --format '{{.Spec.Data}}' | base64 -d | grep -v '^$' | grep '=' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort > old_configs/${config_name}.txt
             else
               cat /dev/null > old_configs/${config_name}.txt
             fi
           }
-
-          # <NEW_CONFIG>
-          # if adding new config, add call to extract_config here
 
           extract_config "bot_env"
           extract_config "chronos_env"
           extract_config "scheduler_env"
           extract_config "server_env"
           extract_config "sockets_env"
+
+      - name: Prepare new configs for comparison
+        run: |
+          for config in configs/*.txt; do
+            grep -v '^$' "$config" | grep '=' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort > "${config}.normalized"
+            mv "${config}.normalized" "$config"
+          done
 
       - name: Detect changes and update configs
         id: config-changes
@@ -123,31 +127,33 @@ jobs:
 
           check_and_update_config() {
             local config_name=$1
+            local config_file="configs/${config_name}.txt"
+            local old_config="old_configs/${config_name}.txt"
 
-            if ! diff -q old_configs/${config_name}.txt configs/${config_name}.txt > /dev/null; then
+            if ! comm -23 "$config_file" "$old_config" > /dev/null && ! comm -13 "$config_file" "$old_config" > /dev/null; then
+              echo "No changes detected for ${config_name}"
+              return 1
+            else
               echo "${config_name} has changed, updating Docker config..."
 
               if docker config ls --filter name=$config_name -q | grep -q .; then
                 docker config rm $config_name
               fi
 
-              docker config create $config_name configs/${config_name}.txt
+              docker config create $config_name configs/${config_name}.txt.original
 
-              if grep -q "SERVICES_TO_REDEPLOY=" services_to_redeploy.txt; then
+              if grep -q "SERVICES_TO_REDEPLOY=$" services_to_redeploy.txt; then
                 sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name}/" services_to_redeploy.txt
               else
                 sed -i "s/SERVICES_TO_REDEPLOY=/SERVICES_TO_REDEPLOY=${config_name},/" services_to_redeploy.txt
               fi
-
               return 0
-            else
-              echo "No changes detected for ${config_name}"
-              return 1
             fi
           }
 
-          # <NEW_CONFIG>
-          # if adding new config, add call to check_and_update_config here
+          for config in configs/*.txt; do
+            cp "$config" "${config}.original"
+          done
 
           check_and_update_config "bot_env"
           check_and_update_config "chronos_env"
