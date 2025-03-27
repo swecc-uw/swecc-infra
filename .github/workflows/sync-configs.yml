@@ -214,7 +214,7 @@ jobs:
 
           # TODO(elimelt): update workflow names
           if [[ "$CHANGED_SERVICES" == *"bot_env"* ]]; then
-            trigger_workflow "bot_env" "swecc-uw/swecc-bot" "deploy.yaml"
+            trigger_workflow "bot_env" "swecc-uw/swecc-bot" "deploy.yml"
           fi
 
           if [[ "$CHANGED_SERVICES" == *"chronos_env"* ]]; then
