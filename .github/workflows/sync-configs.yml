@@ -48,6 +48,7 @@ jobs:
           OFF_TOPIC_CHANNEL_ID=${{ secrets.OFF_TOPIC_CHANNEL_ID }}
           OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
           VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
+          READING_GROUP_CHANNEL=${{ secrets.READING_GROUP_CHANNEL }}
           EOF
 
       - name: Create Chronos Config
