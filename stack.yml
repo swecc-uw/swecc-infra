@@ -26,7 +26,7 @@ networks:
 volumes:
   chronos_data:
   redis_data:
-  swecc-rabbit-data:
+  rabbitmq_data:
 
 configs:
   bot_env:

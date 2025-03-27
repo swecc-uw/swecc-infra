@@ -49,6 +49,11 @@ jobs:
           OFFICER_ROLE_ID=${{ secrets.OFFICER_ROLE_ID }}
           VERIFIED_ROLE_ID=${{ secrets.VERIFIED_ROLE_ID }}
           READING_GROUP_CHANNEL=${{ secrets.READING_GROUP_CHANNEL }}
+          BOT_RABBIT_USER=${{ secrets.BOT_RABBIT_USER }}
+          BOT_RABBIT_PASS=${{ secrets.BOT_RABBIT_PASS }}
+          RABBIT_HOST=${{ secrets.RABBIT_HOST }}
+          RABBIT_PORT=${{ secrets.RABBIT_PORT }}
+          RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           EOF
 
       - name: Create Chronos Config
