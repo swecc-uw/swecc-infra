@@ -54,6 +54,7 @@ jobs:
           RABBIT_HOST=${{ secrets.RABBIT_HOST }}
           RABBIT_PORT=${{ secrets.RABBIT_PORT }}
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
+          VERIFIED_EMAIL_ROLE_ID=${{ secrets.VERIFIED_EMAIL_ROLE_ID }}
           EOF
 
       - name: Create Chronos Config
