@@ -107,6 +107,11 @@ jobs:
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SOCKET_RABBIT_USER=${{ secrets.SOCKET_RABBIT_USER }}
+          SOCKET_RABBIT_PASS=${{ secrets.SOCKET_RABBIT_PASS }}
+          RABBIT_HOST=${{ secrets.RABBIT_HOST }}
+          RABBIT_PORT=${{ secrets.RABBIT_PORT }}
+          RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           EOF
 
       - name: Extract and prepare configs for comparison
