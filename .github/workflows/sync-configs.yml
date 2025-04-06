@@ -89,7 +89,8 @@ jobs:
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}  
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
+          RESUME_REVIEW_AWS_BUCKET_NAME=${{ secrets.RESUME_REVIEW_AWS_BUCKET_NAME }}
+          REFERRAL_AWS_BUCKET_NAME=${{ secrets.REFERRAL_AWS_BUCKET_NAME }}
           EOF
 
       - name: Create Sockets Config
