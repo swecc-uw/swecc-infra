@@ -113,6 +113,11 @@ jobs:
           RABBIT_PORT=${{ secrets.RABBIT_PORT }}
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           EOF
+      - name: Create AI Config
+        run: |
+          cat > configs/ai_env.txt << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
 
       - name: Extract and prepare configs for comparison
         run: |
