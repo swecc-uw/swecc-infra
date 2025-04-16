@@ -113,6 +113,11 @@ jobs:
           RABBIT_PORT=${{ secrets.RABBIT_PORT }}
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           EOF
+      - name: Create AI Config
+        run: |
+          cat > configs/ai_env.txt << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
 
       - name: Extract and prepare configs for comparison
         run: |
@@ -146,6 +151,7 @@ jobs:
           extract_config "scheduler_env"
           extract_config "server_env"
           extract_config "sockets_env"
+          extract_config "ai_env"
 
           for config in configs/*.txt; do
             filename=$(basename "$config")
@@ -190,6 +196,7 @@ jobs:
           check_and_update_config "scheduler_env"
           check_and_update_config "server_env"
           check_and_update_config "sockets_env"
+          check_and_update_config "ai_env"
 
           source services_to_redeploy.txt
           if [ -n "$SERVICES_TO_REDEPLOY" ]; then
@@ -242,4 +249,8 @@ jobs:
 
           if [[ "$CHANGED_SERVICES" == *"sockets_env"* ]]; then
             trigger_workflow "sockets_env" "swecc-uw/swecc-sockets" "deploy.yml"
+          fi
+
+          if [[ "$CHANGED_SERVICES" == *"ai_env"* ]]; then
+            trigger_workflow "ai_env" "swecc-uw/swecc-ai" "deploy.yml"
           fi
