@@ -118,6 +118,8 @@ jobs:
         run: |
           cat > configs/ai_env.txt << EOF
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          AI_RABBIT_USER=${{ secrets.AI_RABBIT_USER }}
+          AI_RABBIT_PASS=${{ secrets.AI_RABBIT_PASS }}
           EOF
 
       - name: Extract and prepare configs for comparison
