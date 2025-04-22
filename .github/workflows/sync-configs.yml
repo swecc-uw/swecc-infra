@@ -120,6 +120,9 @@ jobs:
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           AI_RABBIT_USER=${{ secrets.AI_RABBIT_USER }}
           AI_RABBIT_PASS=${{ secrets.AI_RABBIT_PASS }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}  
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
           EOF
 
       - name: Extract and prepare configs for comparison
