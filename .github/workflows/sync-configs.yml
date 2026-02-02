@@ -56,6 +56,7 @@ jobs:
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           VERIFIED_EMAIL_ROLE_ID=${{ secrets.VERIFIED_EMAIL_ROLE_ID }}
           COHORT_CATEGORY_ID=${{ secrets.COHORT_CATEGORY_ID }}
+          TIMELINE_CHANNEL=${{ secrets.TIMELINE_CHANNEL }}
           EOF
 
       - name: Create Chronos Config
