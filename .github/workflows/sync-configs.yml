@@ -128,12 +128,9 @@ jobs:
 
       - name: Create Bench API Config
         run: |
-          cat > configs/bench-api_env.txt << EOF
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          # Same Postgres as server — reuse server_env (no duplicate DB secrets).
+          cp configs/server_env.txt configs/bench-api_env.txt
+          cat >> configs/bench-api_env.txt << EOF
           ORCH_TRACE_DIR=/data/traces
           ORCH_SANDBOX_URL=http://bench-sandbox:8001
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
