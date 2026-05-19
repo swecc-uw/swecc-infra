@@ -24,9 +24,11 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Reload prod nginx
+      - name: Sync nginx.conf to prod bind mount
         run: |
           set -euo pipefail
+          # shellcheck source=scripts/nginx-mount-path.sh
+          . ./scripts/nginx-mount-path.sh
 
           if ! docker service inspect "${{ env.SERVICE_NAME }}" &>/dev/null; then
             echo "❌ Service ${{ env.SERVICE_NAME }} not found on this swarm."
@@ -34,7 +36,13 @@ jobs:
             exit 1
           fi
 
-          echo "Updating ${{ env.SERVICE_NAME }} (bind-mounted nginx.conf from this checkout)..."
+          sync_nginx_conf_to_service_mount "${{ env.SERVICE_NAME }}" nginx.conf
+
+      - name: Reload prod nginx
+        run: |
+          set -euo pipefail
+
+          echo "Reloading ${{ env.SERVICE_NAME }}..."
           docker service update \
             --force \
             --update-parallelism 1 \
