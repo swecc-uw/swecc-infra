@@ -1,17 +1,15 @@
-name: Deploy Nginx Stack
+name: Deploy Nginx
 
 on:
   push:
     branches: [main, master]
     paths:
       - 'nginx.conf'
-      - 'stack.yml'
       - '.github/workflows/deploy-nginx.yml'
   workflow_dispatch:
 
 env:
-  STACK_NAME: swecc_stack
-  SERVICE_NAME: swecc_stack_nginx
+  SERVICE_NAME: prod_nginx
 
 jobs:
   deploy_to_swarm:
@@ -26,32 +24,41 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Deploy nginx stack
+      - name: Reload prod nginx
         run: |
-          docker stack deploy -c stack.yml --with-registry-auth --prune ${{ env.STACK_NAME }}
+          set -euo pipefail
 
-          echo "Stack deployed. Current services:"
-          docker service ls
+          if ! docker service inspect "${{ env.SERVICE_NAME }}" &>/dev/null; then
+            echo "❌ Service ${{ env.SERVICE_NAME }} not found on this swarm."
+            docker service ls
+            exit 1
+          fi
+
+          echo "Updating ${{ env.SERVICE_NAME }} (bind-mounted nginx.conf from this checkout)..."
+          docker service update \
+            --force \
+            --update-parallelism 1 \
+            --update-order start-first \
+            --update-failure-action rollback \
+            "${{ env.SERVICE_NAME }}"
 
       - name: Verify deployment
         run: |
-          echo "Waiting for nginx service to stabilize..."
+          set -euo pipefail
+
+          echo "Waiting for ${{ env.SERVICE_NAME }} to stabilize..."
           sleep 5
 
           timeout=120
           elapsed=0
 
           while [ $elapsed -lt $timeout ]; do
-            if ! docker service inspect ${{ env.SERVICE_NAME }} &>/dev/null; then
-              echo "⏳ Service ${{ env.SERVICE_NAME }} not found yet..."
-            else
-              REPLICAS=$(docker service ls --filter "name=${{ env.SERVICE_NAME }}" --format "{{.Replicas}}")
-              echo "Current replica status: $REPLICAS"
+            REPLICAS=$(docker service ls --filter "name=${{ env.SERVICE_NAME }}" --format "{{.Replicas}}")
+            echo "Current replica status: $REPLICAS"
 
-              if echo "$REPLICAS" | grep -qv "0/"; then
-                echo "✅ Nginx stack deployed successfully"
-                exit 0
-              fi
+            if echo "$REPLICAS" | grep -qE '^[1-9][0-9]*/[1-9][0-9]*$'; then
+              echo "✅ ${{ env.SERVICE_NAME }} is running"
+              exit 0
             fi
 
             echo "⏳ Waiting... ($elapsed/$timeout seconds)"
@@ -60,5 +67,5 @@ jobs:
           done
 
           echo "❌ Deployment verification timed out"
-          docker service ps ${{ env.SERVICE_NAME }} --no-trunc 2>/dev/null || docker service ls
+          docker service ps "${{ env.SERVICE_NAME }}" --no-trunc
           exit 1
