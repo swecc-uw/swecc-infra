@@ -38,6 +38,19 @@ jobs:
 
           sync_nginx_conf_to_service_mount "${{ env.SERVICE_NAME }}" nginx.conf
 
+      - name: Attach prod nginx to app overlay network
+        run: |
+          set -euo pipefail
+          APP_NETWORK="${APP_NETWORK:-prod_swecc-network}"
+          if docker service inspect "${{ env.SERVICE_NAME }}" \
+            --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}}{{println}}{{end}}' \
+            | grep -qx "$APP_NETWORK"; then
+            echo "✅ ${{ env.SERVICE_NAME }} already on $APP_NETWORK"
+          else
+            echo "Adding $APP_NETWORK to ${{ env.SERVICE_NAME }}..."
+            docker service update --network-add "name=${APP_NETWORK}" "${{ env.SERVICE_NAME }}"
+          fi
+
       - name: Reload prod nginx
         run: |
           set -euo pipefail
