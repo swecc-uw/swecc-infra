@@ -104,10 +104,12 @@ run_swarm_repro() {
   dir_a="$(mktemp -d)"
   dir_b="$(mktemp -d)"
   cleanup_swarm_test() {
+    trap - EXIT
     docker stack rm -f "$STACK_NAME" 2>/dev/null || true
     rm -rf "$dir_a" "$dir_b" "$LE_DIR"
     LE_DIR=""
   }
+  trap cleanup_swarm_test EXIT
 
   cp "$ROOT/nginx.conf" "$dir_a/nginx.conf"
   cp "$ROOT/nginx.conf" "$dir_b/nginx.conf"
