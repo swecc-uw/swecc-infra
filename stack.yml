@@ -16,12 +16,12 @@ services:
       - 80:80
       - 443:443
     networks:
-      - swecc-network
+      # App services from swecc-core deploy on prod_swecc-network; nginx must share it.
+      - prod_swecc-network
 
 networks:
-  swecc-network:
-    driver: overlay
-    attachable: true
+  prod_swecc-network:
+    external: true
 
 volumes:
   chronos_data:
