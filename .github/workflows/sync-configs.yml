@@ -131,11 +131,14 @@ jobs:
           # Same Postgres as server — reuse server_env (no duplicate DB secrets).
           cp configs/server_env.txt configs/bench-api_env.txt
           cat >> configs/bench-api_env.txt << EOF
+          ROOT_PATH=/bench
           ORCH_TRACE_DIR=/data/traces
-          ORCH_SANDBOX_URL=http://bench-sandbox:8001
+          ORCH_SANDBOX_URL=http://swecc_stack_bench-sandbox:8001
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}
+          XAI_API_KEY=${{ secrets.XAI_API_KEY }}
           EOF
 
       - name: Create Bench Sandbox Config
@@ -147,11 +150,13 @@ jobs:
       - name: Create Bench Worker Config
         run: |
           cat > configs/bench-worker_env.txt << EOF
-          WORKER_API_URL=http://bench-api:8000
+          WORKER_API_URL=http://swecc_stack_bench-api:8000
           WORKER_POLL_INTERVAL=10
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}
+          XAI_API_KEY=${{ secrets.XAI_API_KEY }}
           EOF
 
       - name: Extract and prepare configs for comparison
