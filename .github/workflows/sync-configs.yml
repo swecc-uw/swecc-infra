@@ -131,6 +131,8 @@ jobs:
           # Same Postgres as server — reuse server_env (no duplicate DB secrets).
           cp configs/server_env.txt configs/bench-api_env.txt
           cat >> configs/bench-api_env.txt << EOF
+          ORCH_GATEWAY_PREFIX=${{ secrets.ORCH_GATEWAY_PREFIX }}
+          ORCH_PUBLIC_BASE_URL=${{ secrets.ORCH_PUBLIC_BASE_URL }}
           ORCH_TRACE_DIR=/data/traces
           ORCH_SANDBOX_URL=http://bench-sandbox:8001
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
