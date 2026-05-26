@@ -1,0 +1,43 @@
+name: Deploy Gateway
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'stack.yml'
+      - 'nginx.conf'
+      - 'scripts/deploy-gateway.sh'
+      - 'scripts/nginx-mount-path.sh'
+      - '.github/workflows/deploy-gateway.yml'
+  workflow_dispatch:
+
+env:
+  STACK_NAME: prod
+  SERVICE_NAME: prod_nginx
+  APP_NETWORK: prod_swecc-network
+
+jobs:
+  deploy_gateway:
+    name: Deploy prod gateway (80/443)
+    runs-on:
+      group: EC2
+      labels: [self-hosted, deploy]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy stack and verify listeners
+        run: |
+          chmod +x ./scripts/deploy-gateway.sh ./scripts/nginx-mount-path.sh
+          ./scripts/deploy-gateway.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Gateway status" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          docker service ls --filter "name=${{ env.SERVICE_NAME }}" || true
+          docker service inspect "${{ env.SERVICE_NAME }}" --format '{{json .Endpoint.Ports}}' | python3 -m json.tool 2>/dev/null \
+            >> "$GITHUB_STEP_SUMMARY" || true
+          ss -tln 2>/dev/null | grep -E ':80|:443' >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

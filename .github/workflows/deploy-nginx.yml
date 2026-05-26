@@ -1,3 +1,6 @@
+# Config sync + force reload for an existing prod_nginx service.
+# To (re)publish :80/:443 or bootstrap the stack, use deploy-gateway.yml instead.
+
 name: Deploy Nginx
 
 on:
