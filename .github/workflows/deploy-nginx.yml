@@ -44,15 +44,9 @@ jobs:
       - name: Attach prod nginx to app overlay network
         run: |
           set -euo pipefail
-          APP_NETWORK="${APP_NETWORK:-prod_swecc-network}"
-          if docker service inspect "${{ env.SERVICE_NAME }}" \
-            --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}}{{println}}{{end}}' \
-            | grep -qx "$APP_NETWORK"; then
-            echo "✅ ${{ env.SERVICE_NAME }} already on $APP_NETWORK"
-          else
-            echo "Adding $APP_NETWORK to ${{ env.SERVICE_NAME }}..."
-            docker service update --network-add "name=${APP_NETWORK}" "${{ env.SERVICE_NAME }}"
-          fi
+          # shellcheck source=scripts/nginx-mount-path.sh
+          . ./scripts/nginx-mount-path.sh
+          ensure_service_on_network "${{ env.SERVICE_NAME }}" "${APP_NETWORK:-prod_swecc-network}"
 
       - name: Reload prod nginx
         run: |
