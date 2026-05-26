@@ -95,7 +95,7 @@ sync_nginx_conf_to_service_mount() {
     cp "$source_conf" "$host_path"
   fi
 
-  if ! grep -q 'location /bench/' "$host_path"; then
+  if ! grep -qE 'location .* /bench/' "$host_path"; then
     echo "ERROR: synced file missing /bench/ routes" >&2
     return 1
   fi
