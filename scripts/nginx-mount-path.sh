@@ -57,6 +57,16 @@ nginx_bind_mount_source() {
   return 1
 }
 
+# Resolve to an absolute path (Linux runners; used to detect same-file bind mounts).
+_abs_path() {
+  local p="$1"
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$p"
+  else
+    (cd "$(dirname "$p")" && printf '%s/%s\n' "$(pwd)" "$(basename "$p")")
+  fi
+}
+
 # Copy repo nginx.conf to the path the running service actually reads.
 sync_nginx_conf_to_service_mount() {
   local service_name="${1:?service name required}"
@@ -67,17 +77,23 @@ sync_nginx_conf_to_service_mount() {
     return 1
   fi
 
-  local mount_source host_path
+  local mount_source host_path src_abs dest_abs
   mount_source="$(nginx_bind_mount_source "$service_name")"
   host_path="$(host_path_from_mount_source "$mount_source")"
+  src_abs="$(_abs_path "$source_conf")"
+  dest_abs="$(_abs_path "$host_path")"
 
   echo "Service: $service_name"
   echo "Mount source (inspect): $mount_source"
   echo "Host path (write): $host_path"
-  echo "Copying $source_conf -> $host_path"
 
-  mkdir -p "$(dirname "$host_path")"
-  cp "$source_conf" "$host_path"
+  if [[ "$src_abs" == "$dest_abs" ]]; then
+    echo "OK: bind mount already uses checkout nginx.conf (no copy needed)"
+  else
+    echo "Copying $source_conf -> $host_path"
+    mkdir -p "$(dirname "$host_path")"
+    cp "$source_conf" "$host_path"
+  fi
 
   if ! grep -q 'location /bench/' "$host_path"; then
     echo "ERROR: synced file missing /bench/ routes" >&2
