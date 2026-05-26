@@ -102,3 +102,45 @@ sync_nginx_conf_to_service_mount() {
 
   echo "OK: synced nginx.conf includes /bench/ routes"
 }
+
+# Attach overlay network if missing. Swarm stores network IDs in .Target, not names —
+# comparing Target to prod_swecc-network always fails and breaks set -e on --network-add.
+service_on_network() {
+  local service_name="${1:?service name required}"
+  local network_name="${2:?network name required}"
+  local target net_name
+
+  while IFS= read -r target; do
+    [[ -z "$target" ]] && continue
+    net_name="$(docker network inspect "$target" --format '{{.Name}}' 2>/dev/null || true)"
+    if [[ "$net_name" == "$network_name" ]]; then
+      return 0
+    fi
+  done < <(
+    docker service inspect "$service_name" \
+      --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}}{{println}}{{end}}'
+  )
+  return 1
+}
+
+ensure_service_on_network() {
+  local service_name="${1:?service name required}"
+  local network_name="${2:-prod_swecc-network}"
+
+  if service_on_network "$service_name" "$network_name"; then
+    echo "OK: $service_name already on $network_name"
+    return 0
+  fi
+
+  echo "Adding $network_name to $service_name..."
+  local out
+  if out="$(docker service update --network-add "name=${network_name}" "$service_name" 2>&1)"; then
+    return 0
+  fi
+  if echo "$out" | grep -qiE 'already attached to network|service is already attached'; then
+    echo "OK: $network_name already attached ($service_name)"
+    return 0
+  fi
+  echo "$out" >&2
+  return 1
+}
