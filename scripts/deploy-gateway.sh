@@ -3,13 +3,21 @@
 set -euo pipefail
 
 STACK_NAME="${STACK_NAME:-prod}"
-# stack.yml service key is "nginx"; Swarm name is prod_nginx when STACK_NAME=prod.
 SERVICE_NAME="${SERVICE_NAME:-prod_nginx}"
 APP_NETWORK="${APP_NETWORK:-prod_swecc-network}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { echo "[deploy-gateway] $*"; }
 die() { echo "[deploy-gateway] ERROR: $*" >&2; exit 1; }
+
+dump_service_debug() {
+  docker service ps "$SERVICE_NAME" --no-trunc 2>/dev/null || true
+  local cid
+  cid="$(docker ps -aq -f name=prod_nginx | head -1 || true)"
+  if [[ -n "$cid" ]]; then
+    docker logs "$cid" --tail 40 2>&1 || true
+  fi
+}
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
@@ -34,8 +42,19 @@ ensure_published_port() {
     "$SERVICE_NAME"
 }
 
+validate_nginx_conf() {
+  log "nginx -t on ${APP_NETWORK} (resolves server/sockets/bench-api)"
+  if ! docker run --rm \
+    --network "$APP_NETWORK" \
+    -v "${REPO_ROOT}/nginx.conf:/etc/nginx/nginx.conf:ro" \
+    -v /etc/letsencrypt:/etc/letsencrypt:ro \
+    nginx:stable-alpine nginx -t; then
+    die "nginx.conf failed validation — fix before deploying"
+  fi
+}
+
 wait_for_service() {
-  local max_attempts="${1:-30}"
+  local max_attempts="${1:-60}"
   local attempt=0
   while [[ $attempt -lt $max_attempts ]]; do
     if docker service ps "$SERVICE_NAME" --filter "desired-state=running" --format "{{.CurrentState}}" \
@@ -46,40 +65,50 @@ wait_for_service() {
     attempt=$((attempt + 1))
     sleep 2
   done
-  die "$SERVICE_NAME did not reach Running; see: docker service ps $SERVICE_NAME --no-trunc"
+  dump_service_debug
+  die "$SERVICE_NAME did not reach Running"
+}
+
+reload_running_nginx() {
+  local cid
+  cid="$(docker ps -q -f name=prod_nginx | head -1 || true)"
+  [[ -n "$cid" ]] || return 1
+  docker exec "$cid" nginx -t
+  docker exec "$cid" nginx -s reload
+  log "reloaded nginx in container $cid"
+  return 0
+}
+
+roll_service_forward() {
+  log "rolling $SERVICE_NAME forward (start-first, no rollback)"
+  docker service update \
+    --force \
+    --update-parallelism 1 \
+    --update-order start-first \
+    --update-failure-action pause \
+    "$SERVICE_NAME"
 }
 
 verify_host_listeners() {
-  local missing=0
-  if command -v ss >/dev/null 2>&1; then
-    if ! ss -tln 2>/dev/null | grep -qE ':80 '; then
-      log "WARN: nothing listening on :80 (ingress may still be starting)"
-      missing=$((missing + 1))
-    fi
-    if ! ss -tln 2>/dev/null | grep -qE ':443 '; then
-      log "WARN: nothing listening on :443 (ingress may still be starting)"
-      missing=$((missing + 1))
-    fi
+  if ! command -v ss >/dev/null 2>&1; then
+    return 0
   fi
-  if [[ $missing -gt 0 ]]; then
-    log "Published ports: $(docker service inspect "$SERVICE_NAME" --format '{{json .Endpoint.Ports}}')"
-  fi
+  ss -tln 2>/dev/null | grep -E ':80 |:443 ' || log "WARN: :80/:443 not yet in ss output"
 }
 
 verify_local_https() {
   if ! command -v curl >/dev/null 2>&1; then
-    log "skip curl check (curl not installed)"
     return 0
   fi
   local code
   code="$(curl -sk -o /dev/null -w '%{http_code}' \
     --resolve api.swecc.org:443:127.0.0.1 \
-    --max-time 10 \
+    --max-time 15 \
     https://api.swecc.org/health/ || true)"
   log "curl https://api.swecc.org/health/ via 127.0.0.1 -> HTTP $code"
   case "$code" in
     200|503) return 0 ;;
-    *) die "expected 200 or 503 from /health/ through gateway, got: ${code:-none}" ;;
+    *) die "expected 200 or 503 from /health/, got: ${code:-none}" ;;
   esac
 }
 
@@ -88,24 +117,20 @@ main() {
   require_cmd jq
 
   cd "$REPO_ROOT"
-  [[ -f stack.yml ]] || die "stack.yml not found in $REPO_ROOT"
-  [[ -f nginx.conf ]] || die "nginx.conf not found in $REPO_ROOT"
-
-  if ! docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null | grep -qE 'manager|active'; then
-    die "this host must be a Swarm manager (got: $(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo unknown))"
-  fi
+  [[ -f stack.yml && -f nginx.conf ]] || die "stack.yml and nginx.conf required in $REPO_ROOT"
 
   if ! docker network inspect "$APP_NETWORK" >/dev/null 2>&1; then
-    die "overlay network $APP_NETWORK missing — create it before deploying the gateway"
+    die "overlay network $APP_NETWORK missing"
   fi
+
+  validate_nginx_conf
 
   export PWD="$REPO_ROOT"
   log "stack deploy -c stack.yml $STACK_NAME (PWD=$PWD)"
   docker stack deploy -c stack.yml "$STACK_NAME"
 
-  if ! docker service inspect "$SERVICE_NAME" >/dev/null 2>&1; then
-    die "service $SERVICE_NAME not found after stack deploy (expected stack service 'nginx' -> prod_nginx)"
-  fi
+  docker service inspect "$SERVICE_NAME" >/dev/null 2>&1 \
+    || die "service $SERVICE_NAME not found after stack deploy"
 
   ensure_published_port 80
   ensure_published_port 443
@@ -114,15 +139,13 @@ main() {
   . "${REPO_ROOT}/scripts/nginx-mount-path.sh"
   sync_nginx_conf_to_service_mount "$SERVICE_NAME" nginx.conf
 
-  log "rolling $SERVICE_NAME (config sync + image refresh)"
-  docker service update \
-    --force \
-    --update-parallelism 1 \
-    --update-order start-first \
-    --update-failure-action rollback \
-    "$SERVICE_NAME"
+  if reload_running_nginx; then
+    log "config applied via reload (no swarm task replace)"
+  else
+    roll_service_forward
+    wait_for_service 90
+  fi
 
-  wait_for_service 60
   verify_host_listeners
   verify_local_https
   log "gateway deploy finished OK"
