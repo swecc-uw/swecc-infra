@@ -76,6 +76,11 @@ jobs:
 
       - name: Create Server Config
         run: |
+          # bench-api deploy still uses server_env on main until swecc-core deploy uses bench-api_env.
+          BENCH_GATEWAY_PREFIX='${{ secrets.ORCH_GATEWAY_PREFIX }}'
+          BENCH_PUBLIC_BASE_URL='${{ secrets.ORCH_PUBLIC_BASE_URL }}'
+          BENCH_GATEWAY_PREFIX="${BENCH_GATEWAY_PREFIX:-/bench}"
+          BENCH_PUBLIC_BASE_URL="${BENCH_PUBLIC_BASE_URL:-https://api.swecc.org/bench}"
           cat > configs/server_env.txt << EOF
           DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
           DB_HOST=${{ secrets.DB_HOST }}
@@ -98,6 +103,8 @@ jobs:
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           SERVER_RABBIT_USER=${{ secrets.SERVER_RABBIT_USER }}
           SERVER_RABBIT_PASS=${{ secrets.SERVER_RABBIT_PASS }}
+          ORCH_GATEWAY_PREFIX=${BENCH_GATEWAY_PREFIX}
+          ORCH_PUBLIC_BASE_URL=${BENCH_PUBLIC_BASE_URL}
           EOF
 
       - name: Create Sockets Config
@@ -292,6 +299,8 @@ jobs:
 
           if [[ "$CHANGED_SERVICES" == *"server_env"* ]]; then
             trigger_workflow "server_env" "swecc-uw/swecc-server" "deploy.yml"
+            # bench-api reads server_env today; redeploy when gateway vars change.
+            trigger_workflow "server_env_bench" "swecc-uw/swecc-core" "deploy-bench-api.yml"
           fi
 
           if [[ "$CHANGED_SERVICES" == *"sockets_env"* ]]; then
