@@ -43,8 +43,9 @@ ensure_published_port() {
 }
 
 validate_nginx_conf() {
-  log "nginx -t (config + TLS paths)"
+  log "nginx -t on ${APP_NETWORK} (resolves server/sockets/bench-api)"
   if ! docker run --rm \
+    --network "$APP_NETWORK" \
     -v "${REPO_ROOT}/nginx.conf:/etc/nginx/nginx.conf:ro" \
     -v /etc/letsencrypt:/etc/letsencrypt:ro \
     nginx:stable-alpine nginx -t; then
