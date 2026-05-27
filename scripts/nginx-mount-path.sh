@@ -99,8 +99,12 @@ sync_nginx_conf_to_service_mount() {
     echo "ERROR: synced file missing /bench/ routes" >&2
     return 1
   fi
+  if ! grep -qE 'location = /bench[[:space:]]*\{' "$host_path"; then
+    echo "ERROR: synced file missing exact /bench route (Mesocosm CORS)" >&2
+    return 1
+  fi
 
-  echo "OK: synced nginx.conf includes /bench/ routes"
+  echo "OK: synced nginx.conf includes /bench routes"
 }
 
 # Attach overlay network if missing. Swarm stores network IDs in .Target, not names —
