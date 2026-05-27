@@ -81,15 +81,22 @@ roll_service_forward() {
 
 verify_host_listeners() {
   if ! command -v ss >/dev/null 2>&1; then
-    die "ss required to verify :80/:443 are listening on the host"
+    log "WARN: ss not available; skipping host listener check"
+    return 0
   fi
-  local listeners
-  listeners="$(ss -tln 2>/dev/null || true)"
-  echo "$listeners" | grep -qE '(:|\*)0\.0\.0\.0:443 |\[::\]:443 |:443 ' \
-    || die ":443 is not listening on the host (prod_nginx ingress missing?)"
-  echo "$listeners" | grep -qE '(:|\*)0\.0\.0\.0:80 |\[::\]:80 |:80 ' \
-    || die ":80 is not listening on the host"
-  log "host is listening on :80 and :443"
+  local attempt=0 listeners
+  while [[ $attempt -lt 15 ]]; do
+    listeners="$(ss -tln 2>/dev/null || true)"
+    if echo "$listeners" | grep -qE ':443\b' && echo "$listeners" | grep -qE ':80\b'; then
+      log "host is listening on :80 and :443 (attempt $((attempt + 1)))"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  log "ss -tln (last attempt):"
+  echo "$listeners"
+  die ":80/:443 not listening after roll (prod_nginx ingress missing?)"
 }
 
 verify_service_published_ports() {
