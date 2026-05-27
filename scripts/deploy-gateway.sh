@@ -35,22 +35,32 @@ port_publish_mode() {
     | jq -r --argjson p "$port" '.[] | select(.PublishedPort == $p) | .PublishMode' | head -1
 }
 
-ensure_host_published_port() {
-  local port="$1"
-  local mode
-  mode="$(port_publish_mode "$port")"
-  if [[ "$mode" == "host" ]]; then
-    log "Published port $port (host mode) already configured on $SERVICE_NAME"
+ensure_host_published_ports() {
+  local ports_updated=false
+  local -a update_args=()
+
+  for port in 80 443; do
+    local mode
+    mode="$(port_publish_mode "$port")"
+    if [[ "$mode" == "host" ]]; then
+      log "Published port $port (host mode) already configured"
+      continue
+    fi
+    ports_updated=true
+    if [[ -n "$mode" && "$mode" != "null" ]]; then
+      log "Will replace port $port publish mode $mode -> host"
+      update_args+=(--publish-rm "$port")
+    fi
+    update_args+=(--publish-add "published=${port},target=${port},protocol=tcp,mode=host")
+  done
+
+  if [[ "$ports_updated" != "true" ]]; then
     return 0
   fi
-  if [[ -n "$mode" && "$mode" != "null" ]]; then
-    log "Replacing $port publish mode $mode -> host"
-    docker service update --publish-rm "$port" "$SERVICE_NAME"
-  fi
-  log "Adding host publish $port -> $port on $SERVICE_NAME"
-  docker service update \
-    --publish-add "published=${port},target=${port},protocol=tcp,mode=host" \
-    "$SERVICE_NAME"
+
+  log "Applying host port publishes in one service update"
+  docker service update "${update_args[@]}" "$SERVICE_NAME"
+  return 2
 }
 
 validate_nginx_conf() {
@@ -80,8 +90,22 @@ wait_for_service() {
   die "$SERVICE_NAME did not reach Running"
 }
 
+nginx_conf_checksum() {
+  sha256sum "$1" 2>/dev/null | awk '{print $1}'
+}
+
+reload_running_nginx() {
+  local cid
+  cid="$(docker ps -q -f name=prod_nginx | head -1 || true)"
+  [[ -n "$cid" ]] || return 1
+  docker exec "$cid" nginx -t
+  docker exec "$cid" nginx -s reload
+  log "reloaded nginx in container $cid"
+  return 0
+}
+
 roll_service_forward() {
-  log "rolling $SERVICE_NAME forward (start-first, no rollback)"
+  log "rolling $SERVICE_NAME forward (start-first)"
   docker service update \
     --force \
     --update-parallelism 1 \
@@ -135,7 +159,7 @@ verify_local_https() {
     return 0
   fi
   local attempt=0 code
-  while [[ $attempt -lt 15 ]]; do
+  while [[ $attempt -lt 8 ]]; do
     code="$(curl -sk -o /dev/null -w '%{http_code}' \
       --resolve api.swecc.org:443:127.0.0.1 \
       --max-time 15 \
@@ -212,18 +236,55 @@ main() {
   docker service inspect "$SERVICE_NAME" >/dev/null 2>&1 \
     || die "service $SERVICE_NAME not found after stack deploy"
 
-  ensure_host_published_port 80
-  ensure_host_published_port 443
+  local needs_roll=false ports_rc=0 publish_rc=0 old_sum="" new_sum=""
+
+  set +e
+  ensure_host_published_ports
+  ports_rc=$?
+  set -e
+  if [[ $ports_rc -eq 2 ]]; then
+    needs_roll=true
+  elif [[ $ports_rc -ne 0 ]]; then
+    die "ensure_host_published_ports failed (exit $ports_rc)"
+  fi
 
   # shellcheck source=scripts/nginx-mount-path.sh
   . "${REPO_ROOT}/scripts/nginx-mount-path.sh"
+  if [[ -f "${HOST_NGINX_CONF}" ]]; then
+    old_sum="$(nginx_conf_checksum "${HOST_NGINX_CONF}")"
+  fi
+  set +e
   publish_nginx_conf_for_swarm "$SERVICE_NAME" nginx.conf
+  publish_rc=$?
+  set -e
+  if [[ $publish_rc -eq 2 ]]; then
+    needs_roll=true
+  elif [[ $publish_rc -ne 0 ]]; then
+    die "publish_nginx_conf_for_swarm failed (exit $publish_rc)"
+  fi
+  new_sum="$(nginx_conf_checksum "${HOST_NGINX_CONF}")"
+  if [[ -n "$old_sum" && "$old_sum" != "$new_sum" ]]; then
+    needs_roll=true
+  elif [[ -z "$old_sum" ]]; then
+    needs_roll=true
+  fi
 
-  # Always roll the task after a config change: reload can leave a dead master
-  # while Swarm still reports 1/1, and reload skips ingress port verification.
-  roll_service_forward
-  wait_for_service 90
-  dump_service_debug
+  if [[ "${GATEWAY_FORCE_ROLL:-}" == "1" ]]; then
+    needs_roll=true
+  fi
+
+  if [[ "$needs_roll" == "true" ]]; then
+    roll_service_forward
+    wait_for_service 90
+    dump_service_debug
+  elif reload_running_nginx; then
+    log "nginx config unchanged; applied via reload (no swarm roll)"
+  else
+    log "WARN: reload failed; rolling task once"
+    roll_service_forward
+    wait_for_service 90
+    dump_service_debug
+  fi
 
   verify_service_published_ports
   verify_dns_points_at_this_host

@@ -1,16 +1,8 @@
-# Config sync + roll for prod_nginx. Full stack repair: deploy-gateway.yml
+# Manual config-only deploy. Push to main uses deploy-gateway.yml only (no duplicate roll).
 
 name: Deploy Nginx
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - 'nginx.conf'
-      - 'scripts/deploy-gateway.sh'
-      - 'scripts/nginx-mount-path.sh'
-      - '.github/workflows/deploy-nginx.yml'
-      - '.github/workflows/deploy-gateway.yml'
   workflow_dispatch:
 
 env:
@@ -28,7 +20,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy gateway (sync config, roll, verify public :443)
+      - name: Deploy gateway (sync config, roll if changed)
+        env:
+          GATEWAY_FORCE_ROLL: "1"
         run: |
           chmod +x ./scripts/deploy-gateway.sh ./scripts/nginx-mount-path.sh
           ./scripts/deploy-gateway.sh

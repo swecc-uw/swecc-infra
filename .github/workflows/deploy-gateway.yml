@@ -1,5 +1,10 @@
 name: Deploy Gateway
 
+# One gateway deploy at a time (avoids dual workflow restart loops on prod_nginx).
+concurrency:
+  group: prod-nginx-gateway
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main, master]
