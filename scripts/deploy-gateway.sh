@@ -120,6 +120,19 @@ verify_local_https() {
   esac
 }
 
+verify_dns_points_at_this_host() {
+  if ! command -v curl >/dev/null 2>&1 || ! command -v dig >/dev/null 2>&1; then
+    return 0
+  fi
+  local public_ip dns_ip
+  public_ip="$(curl -sf --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)"
+  dns_ip="$(dig +short api.swecc.org A 2>/dev/null | head -1 || true)"
+  log "api.swecc.org DNS A=${dns_ip:-unknown}; this host public IP=${public_ip:-unknown}"
+  if [[ -n "$public_ip" && -n "$dns_ip" && "$public_ip" != "$dns_ip" ]]; then
+    die "DNS mismatch: api.swecc.org -> $dns_ip but swarm manager is $public_ip (update Route53 / elastic IP)"
+  fi
+}
+
 verify_public_https() {
   if ! command -v curl >/dev/null 2>&1; then
     return 0
@@ -137,7 +150,7 @@ verify_public_https() {
   log "curl https://api.swecc.org/health/ via public IP ${public_ip} -> HTTP $code"
   case "$code" in
     200|503) return 0 ;;
-    *) die "public :443 check failed (got ${code:-none}); API is not reachable off-host" ;;
+    *) die "public :443 check failed (got ${code:-none}); fix SG (:443 inbound), prod_nginx, or DNS" ;;
   esac
 }
 
@@ -156,7 +169,15 @@ main() {
 
   export PWD="$REPO_ROOT"
   log "stack deploy -c stack.yml $STACK_NAME (PWD=$PWD)"
-  docker stack deploy -c stack.yml "$STACK_NAME"
+  if ! stack_out="$(docker stack deploy -c stack.yml "$STACK_NAME" 2>&1)"; then
+    if echo "$stack_out" | grep -qi 'service mode change is not allowed'; then
+      log "WARN: stack deploy skipped mode change (service already exists): $stack_out"
+    else
+      die "stack deploy failed: $stack_out"
+    fi
+  else
+    log "$stack_out"
+  fi
 
   docker service inspect "$SERVICE_NAME" >/dev/null 2>&1 \
     || die "service $SERVICE_NAME not found after stack deploy"
@@ -174,9 +195,10 @@ main() {
   wait_for_service 90
 
   verify_service_published_ports
-  verify_host_listeners
+  verify_dns_points_at_this_host
   verify_local_https
   verify_public_https
+  verify_host_listeners
   log "gateway deploy finished OK"
 }
 
