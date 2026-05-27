@@ -10,7 +10,8 @@ services:
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt
       - /usr/share/nginx/html:/usr/share/nginx/html
-      - ${PWD}/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Stable host path (not GHA workspace); deploy-gateway copies repo nginx.conf here.
+      - /etc/nginx/swecc-api.conf:/etc/nginx/nginx.conf:ro
     deploy:
       mode: global
       placement:

@@ -104,20 +104,39 @@ verify_service_published_ports() {
   service_has_published_port 443 || die "prod_nginx missing published port 443"
 }
 
+ec2_public_ip() {
+  if ! command -v curl >/dev/null 2>&1; then
+    return 0
+  fi
+  local token
+  token="$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null || true)"
+  if [[ -n "$token" ]]; then
+    curl -sf -H "X-aws-ec2-metadata-token: $token" \
+      "http://169.254.169.254/latest/meta-data/public-ipv4" 2>/dev/null || true
+    return 0
+  fi
+  curl -sf --max-time 5 "http://169.254.169.254/latest/meta-data/public-ipv4" 2>/dev/null || true
+}
+
 verify_local_https() {
   if ! command -v curl >/dev/null 2>&1; then
     return 0
   fi
-  local code
-  code="$(curl -sk -o /dev/null -w '%{http_code}' \
-    --resolve api.swecc.org:443:127.0.0.1 \
-    --max-time 15 \
-    https://api.swecc.org/health/ || true)"
-  log "curl https://api.swecc.org/health/ via 127.0.0.1 -> HTTP $code"
-  case "$code" in
-    200|503) return 0 ;;
-    *) die "expected 200 or 503 from /health/ on loopback, got: ${code:-none}" ;;
-  esac
+  local attempt=0 code
+  while [[ $attempt -lt 15 ]]; do
+    code="$(curl -sk -o /dev/null -w '%{http_code}' \
+      --resolve api.swecc.org:443:127.0.0.1 \
+      --max-time 15 \
+      https://api.swecc.org/health/ || true)"
+    log "curl https://api.swecc.org/health/ via 127.0.0.1 -> HTTP $code (attempt $((attempt + 1)))"
+    case "$code" in
+      200|503) return 0 ;;
+    esac
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  die "expected 200 or 503 from /health/ on loopback, got: ${code:-none}"
 }
 
 verify_dns_points_at_this_host() {
@@ -125,7 +144,7 @@ verify_dns_points_at_this_host() {
     return 0
   fi
   local public_ip dns_ip
-  public_ip="$(curl -sf --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)"
+  public_ip="$(ec2_public_ip)"
   dns_ip="$(dig +short api.swecc.org A 2>/dev/null | head -1 || true)"
   log "api.swecc.org DNS A=${dns_ip:-unknown}; this host public IP=${public_ip:-unknown}"
   if [[ -n "$public_ip" && -n "$dns_ip" && "$public_ip" != "$dns_ip" ]]; then
@@ -138,7 +157,7 @@ verify_public_https() {
     return 0
   fi
   local public_ip code
-  public_ip="$(curl -sf --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)"
+  public_ip="$(ec2_public_ip)"
   if [[ -z "$public_ip" ]]; then
     log "WARN: could not read EC2 public IP; skipping public HTTPS check"
     return 0
@@ -187,7 +206,7 @@ main() {
 
   # shellcheck source=scripts/nginx-mount-path.sh
   . "${REPO_ROOT}/scripts/nginx-mount-path.sh"
-  sync_nginx_conf_to_service_mount "$SERVICE_NAME" nginx.conf
+  publish_nginx_conf_for_swarm "$SERVICE_NAME" nginx.conf
 
   # Always roll the task after a config change: reload can leave a dead master
   # while Swarm still reports 1/1, and reload skips ingress port verification.
