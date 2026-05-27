@@ -21,7 +21,7 @@ Reference SWAG snippets live in swecc-core [`infra/gateway/`](https://github.com
 - **swecc-core only** for app deploys: push to `main` on the relevant path, or run **Deploy Bench API** / **Deploy Server** manually.
 - **swecc-infra only** when changing `nginx.conf`, `stack.yml`, or env configs — not for every migration.
 
-If `api.swecc.org` is unreachable (connection refused on :443), run **Deploy Gateway** (`workflow_dispatch`) — do not redeploy bench-api until the gateway shows `1/1` and public `:443` checks pass in the job log.
+If `api.swecc.org` is unreachable (connection refused on :443), run **Deploy Gateway** (`workflow_dispatch`) — do not redeploy bench-api until the gateway shows `1/1` and public `:443` checks pass in the job log. The deploy script also fails if **Route53/DNS** does not point at this host’s public IP, or if **AWS security group** blocks inbound TCP 80/443.
 
 ## Workflows
 

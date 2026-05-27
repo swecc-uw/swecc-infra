@@ -12,9 +12,7 @@ services:
       - /usr/share/nginx/html:/usr/share/nginx/html
       - ${PWD}/nginx.conf:/etc/nginx/nginx.conf:ro
     deploy:
-      # One replica on a manager; global mode caused duplicate tasks (2/1) on some hosts.
-      mode: replicated
-      replicas: 1
+      mode: global
       placement:
         constraints:
           - node.role == manager
