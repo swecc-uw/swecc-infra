@@ -1,5 +1,4 @@
-# Config sync + force reload for an existing prod_nginx service.
-# To (re)publish :80/:443 or bootstrap the stack, use deploy-gateway.yml instead.
+# Config sync + roll for prod_nginx. Full stack repair: deploy-gateway.yml
 
 name: Deploy Nginx
 
@@ -8,11 +7,16 @@ on:
     branches: [main, master]
     paths:
       - 'nginx.conf'
+      - 'scripts/deploy-gateway.sh'
+      - 'scripts/nginx-mount-path.sh'
       - '.github/workflows/deploy-nginx.yml'
+      - '.github/workflows/deploy-gateway.yml'
   workflow_dispatch:
 
 env:
+  STACK_NAME: prod
   SERVICE_NAME: prod_nginx
+  APP_NETWORK: prod_swecc-network
 
 jobs:
   deploy_to_swarm:
@@ -24,66 +28,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Sync nginx.conf to prod bind mount
+      - name: Deploy gateway (sync config, roll, verify public :443)
         run: |
-          set -euo pipefail
-          # shellcheck source=scripts/nginx-mount-path.sh
-          . ./scripts/nginx-mount-path.sh
-
-          if ! docker service inspect "${{ env.SERVICE_NAME }}" &>/dev/null; then
-            echo "❌ Service ${{ env.SERVICE_NAME }} not found on this swarm."
-            docker service ls
-            exit 1
-          fi
-
-          sync_nginx_conf_to_service_mount "${{ env.SERVICE_NAME }}" nginx.conf
-
-      - name: Attach prod nginx to app overlay network
-        run: |
-          set -euo pipefail
-          # shellcheck source=scripts/nginx-mount-path.sh
-          . ./scripts/nginx-mount-path.sh
-          ensure_service_on_network "${{ env.SERVICE_NAME }}" "${APP_NETWORK:-prod_swecc-network}"
-
-      - name: Reload prod nginx
-        run: |
-          set -euo pipefail
-
-          echo "Reloading ${{ env.SERVICE_NAME }}..."
-          docker service update \
-            --force \
-            --update-parallelism 1 \
-            --update-order start-first \
-            --update-failure-action rollback \
-            "${{ env.SERVICE_NAME }}"
-
-      - name: Verify deployment
-        run: |
-          set -euo pipefail
-
-          echo "Waiting for ${{ env.SERVICE_NAME }} to stabilize..."
-          sleep 5
-
-          timeout=120
-          elapsed=0
-
-          while [ $elapsed -lt $timeout ]; do
-            REPLICAS=$(docker service ls --filter "name=${{ env.SERVICE_NAME }}" --format "{{.Replicas}}")
-            echo "Current replica status: $REPLICAS"
-
-            if echo "$REPLICAS" | grep -qE '^[1-9][0-9]*/[1-9][0-9]*$'; then
-              echo "✅ ${{ env.SERVICE_NAME }} is running"
-              exit 0
-            fi
-
-            echo "⏳ Waiting... ($elapsed/$timeout seconds)"
-            sleep 10
-            elapsed=$((elapsed + 10))
-          done
-
-          echo "❌ Deployment verification timed out"
-          docker service ps "${{ env.SERVICE_NAME }}" --no-trunc
-          exit 1
+          chmod +x ./scripts/deploy-gateway.sh ./scripts/nginx-mount-path.sh
+          ./scripts/deploy-gateway.sh

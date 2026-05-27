@@ -69,16 +69,6 @@ wait_for_service() {
   die "$SERVICE_NAME did not reach Running"
 }
 
-reload_running_nginx() {
-  local cid
-  cid="$(docker ps -q -f name=prod_nginx | head -1 || true)"
-  [[ -n "$cid" ]] || return 1
-  docker exec "$cid" nginx -t
-  docker exec "$cid" nginx -s reload
-  log "reloaded nginx in container $cid"
-  return 0
-}
-
 roll_service_forward() {
   log "rolling $SERVICE_NAME forward (start-first, no rollback)"
   docker service update \
@@ -91,9 +81,20 @@ roll_service_forward() {
 
 verify_host_listeners() {
   if ! command -v ss >/dev/null 2>&1; then
-    return 0
+    die "ss required to verify :80/:443 are listening on the host"
   fi
-  ss -tln 2>/dev/null | grep -E ':80 |:443 ' || log "WARN: :80/:443 not yet in ss output"
+  local listeners
+  listeners="$(ss -tln 2>/dev/null || true)"
+  echo "$listeners" | grep -qE '(:|\*)0\.0\.0\.0:443 |\[::\]:443 |:443 ' \
+    || die ":443 is not listening on the host (prod_nginx ingress missing?)"
+  echo "$listeners" | grep -qE '(:|\*)0\.0\.0\.0:80 |\[::\]:80 |:80 ' \
+    || die ":80 is not listening on the host"
+  log "host is listening on :80 and :443"
+}
+
+verify_service_published_ports() {
+  service_has_published_port 80 || die "prod_nginx missing published port 80"
+  service_has_published_port 443 || die "prod_nginx missing published port 443"
 }
 
 verify_local_https() {
@@ -108,7 +109,28 @@ verify_local_https() {
   log "curl https://api.swecc.org/health/ via 127.0.0.1 -> HTTP $code"
   case "$code" in
     200|503) return 0 ;;
-    *) die "expected 200 or 503 from /health/, got: ${code:-none}" ;;
+    *) die "expected 200 or 503 from /health/ on loopback, got: ${code:-none}" ;;
+  esac
+}
+
+verify_public_https() {
+  if ! command -v curl >/dev/null 2>&1; then
+    return 0
+  fi
+  local public_ip code
+  public_ip="$(curl -sf --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)"
+  if [[ -z "$public_ip" ]]; then
+    log "WARN: could not read EC2 public IP; skipping public HTTPS check"
+    return 0
+  fi
+  code="$(curl -sk -o /dev/null -w '%{http_code}' \
+    --resolve "api.swecc.org:443:${public_ip}" \
+    --max-time 15 \
+    https://api.swecc.org/health/ || true)"
+  log "curl https://api.swecc.org/health/ via public IP ${public_ip} -> HTTP $code"
+  case "$code" in
+    200|503) return 0 ;;
+    *) die "public :443 check failed (got ${code:-none}); API is not reachable off-host" ;;
   esac
 }
 
@@ -139,15 +161,15 @@ main() {
   . "${REPO_ROOT}/scripts/nginx-mount-path.sh"
   sync_nginx_conf_to_service_mount "$SERVICE_NAME" nginx.conf
 
-  if reload_running_nginx; then
-    log "config applied via reload (no swarm task replace)"
-  else
-    roll_service_forward
-    wait_for_service 90
-  fi
+  # Always roll the task after a config change: reload can leave a dead master
+  # while Swarm still reports 1/1, and reload skips ingress port verification.
+  roll_service_forward
+  wait_for_service 90
 
+  verify_service_published_ports
   verify_host_listeners
   verify_local_https
+  verify_public_https
   log "gateway deploy finished OK"
 }
 
