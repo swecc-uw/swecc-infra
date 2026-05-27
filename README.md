@@ -25,6 +25,6 @@ If `api.swecc.org` is unreachable (connection refused on :443), run **Deploy Gat
 
 ## Workflows
 
-- **Deploy Gateway** — stack deploy, publish :80/:443, sync `nginx.conf`, roll `prod_nginx`, verify loopback + EC2 public IP.
-- **Deploy Nginx** — same script as gateway (config-only path).
+- **Deploy Gateway** — stack deploy, publish :80/:443, sync `nginx.conf`, roll only when config/ports change (one job at a time via concurrency).
+- **Deploy Nginx** — manual `workflow_dispatch` only (do not duplicate push triggers).
 - **Sync Docker Configs** — refresh Swarm configs; may trigger swecc-core / other service deploys when env changes.

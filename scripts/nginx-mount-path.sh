@@ -102,6 +102,7 @@ publish_nginx_conf_for_swarm() {
     --mount-rm "$NGINX_CONF_TARGET" \
     --mount-add "type=bind,source=${HOST_NGINX_CONF},target=${NGINX_CONF_TARGET},readonly" \
     "$service_name"
+  return 2
 }
 
 # Back-compat name used by older scripts.
