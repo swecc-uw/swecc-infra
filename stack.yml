@@ -18,8 +18,15 @@ services:
         constraints:
           - node.role == manager
     ports:
-      - 80:80
-      - 443:443
+      # host mode: bind :80/:443 on the manager (ingress mode left nothing listening externally).
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
     networks:
       # App services from swecc-core deploy on prod_swecc-network; nginx must share it.
       - prod_swecc-network

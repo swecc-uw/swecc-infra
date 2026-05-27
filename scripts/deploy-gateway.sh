@@ -23,22 +23,33 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
-service_has_published_port() {
+service_has_host_port() {
+  local port="$1"
+  [[ "$(port_publish_mode "$port")" == "host" ]]
+}
+
+port_publish_mode() {
   local port="$1"
   docker service inspect "$SERVICE_NAME" \
     --format '{{json .Endpoint.Ports}}' 2>/dev/null \
-    | jq -e --argjson p "$port" '.[] | select(.PublishedPort == $p)' >/dev/null
+    | jq -r --argjson p "$port" '.[] | select(.PublishedPort == $p) | .PublishMode' | head -1
 }
 
-ensure_published_port() {
+ensure_host_published_port() {
   local port="$1"
-  if service_has_published_port "$port"; then
-    log "Published port $port already configured on $SERVICE_NAME"
+  local mode
+  mode="$(port_publish_mode "$port")"
+  if [[ "$mode" == "host" ]]; then
+    log "Published port $port (host mode) already configured on $SERVICE_NAME"
     return 0
   fi
-  log "Adding ingress publish $port -> $port on $SERVICE_NAME"
+  if [[ -n "$mode" && "$mode" != "null" ]]; then
+    log "Replacing $port publish mode $mode -> host"
+    docker service update --publish-rm "$port" "$SERVICE_NAME"
+  fi
+  log "Adding host publish $port -> $port on $SERVICE_NAME"
   docker service update \
-    --publish-add "published=${port},target=${port},protocol=tcp,mode=ingress" \
+    --publish-add "published=${port},target=${port},protocol=tcp,mode=host" \
     "$SERVICE_NAME"
 }
 
@@ -100,8 +111,8 @@ verify_host_listeners() {
 }
 
 verify_service_published_ports() {
-  service_has_published_port 80 || die "prod_nginx missing published port 80"
-  service_has_published_port 443 || die "prod_nginx missing published port 443"
+  service_has_host_port 80 || die "prod_nginx missing host-published port 80"
+  service_has_host_port 443 || die "prod_nginx missing host-published port 443"
 }
 
 ec2_public_ip() {
@@ -201,8 +212,8 @@ main() {
   docker service inspect "$SERVICE_NAME" >/dev/null 2>&1 \
     || die "service $SERVICE_NAME not found after stack deploy"
 
-  ensure_published_port 80
-  ensure_published_port 443
+  ensure_host_published_port 80
+  ensure_host_published_port 443
 
   # shellcheck source=scripts/nginx-mount-path.sh
   . "${REPO_ROOT}/scripts/nginx-mount-path.sh"
@@ -212,6 +223,7 @@ main() {
   # while Swarm still reports 1/1, and reload skips ingress port verification.
   roll_service_forward
   wait_for_service 90
+  dump_service_debug
 
   verify_service_published_ports
   verify_dns_points_at_this_host
