@@ -10,7 +10,7 @@ Production Swarm configs, env secrets sync, and the **api.swecc.org** TLS gatewa
 | Docker configs (`server_env`, …) | **this repo** | `Sync Docker Configs` (schedule + push to `main`) |
 | TLS + routing `api.swecc.org` | **this repo** | `Deploy Gateway` / `Deploy Nginx` |
 
-The live gateway is **`prod_nginx`** (stack `prod`, `nginx.conf` in this repo). It must stay on overlay **`prod_swecc-network`** with upstreams **`server:8000`**, **`bench-api:8000`**, **`sockets:8004`** (Swarm service names — not `swecc_stack_*`, which are optional aliases and break `nginx -t` when missing).
+The live gateway is **`prod_nginx`** (stack `prod`, `nginx.conf` in this repo). Config is copied to **`/etc/nginx/swecc-api.conf`** on the swarm manager (never bind-mount the GHA workspace path). It must stay on overlay **`prod_swecc-network`** with upstreams **`server:8000`**, **`bench-api:8000`**, **`sockets:8004`** (Swarm service names — not `swecc_stack_*`, which are optional aliases and break `nginx -t` when missing).
 
 Reference SWAG snippets live in swecc-core [`infra/gateway/`](https://github.com/swecc-uw/swecc-core/tree/main/infra/gateway); mirror route changes into **both** repos’ nginx configs.
 
