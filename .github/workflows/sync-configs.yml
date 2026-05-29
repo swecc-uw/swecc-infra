@@ -138,7 +138,8 @@ jobs:
           ORCH_SANDBOX_URL=http://bench-sandbox:8001
           BENCH_RABBIT_USER=${{ secrets.BENCH_RABBIT_USER }}
           BENCH_RABBIT_PASS=${{ secrets.BENCH_RABBIT_PASS }}
-          ORCH_MQ_ENABLED=0
+          ORCH_MQ_ENABLED=1
+          ORCH_MQ_CONSUME_RUNS=1
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
@@ -166,7 +167,8 @@ jobs:
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           BENCH_RABBIT_USER=${{ secrets.BENCH_RABBIT_USER }}
           BENCH_RABBIT_PASS=${{ secrets.BENCH_RABBIT_PASS }}
-          ORCH_MQ_ENABLED=0
+          ORCH_MQ_ENABLED=1
+          ORCH_MQ_CONSUME_RUNS=1
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
