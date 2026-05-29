@@ -28,3 +28,14 @@ If `api.swecc.org` is unreachable (connection refused on :443), run **Deploy Gat
 - **Deploy Gateway** — stack deploy, publish :80/:443, sync `nginx.conf`, roll only when config/ports change (one job at a time via concurrency).
 - **Deploy Nginx** — manual `workflow_dispatch` only (do not duplicate push triggers).
 - **Sync Docker Configs** — refresh Swarm configs; may trigger swecc-core / other service deploys when env changes.
+
+### Bench RabbitMQ (optional dispatch)
+
+`bench-api_env` / `bench-worker_env` include `BENCH_RABBIT_USER`, `BENCH_RABBIT_PASS`, and `ORCH_MQ_ENABLED=0` (MQ off until you intentionally enable it). Set repo secrets before the next sync:
+
+```bash
+gh secret set BENCH_RABBIT_USER --repo swecc-uw/swecc-infra --body-file /path/to/user.txt
+gh secret set BENCH_RABBIT_PASS --repo swecc-uw/swecc-infra --body-file /path/to/pass.txt
+```
+
+After merge, run **Sync Docker Configs**, then on the swarm manager provision the Rabbit user: `s/ops/rabbitmq.sh bench-api` (from [swecc-core](https://github.com/swecc-uw/swecc-core)). Pairs with [swecc-core#62](https://github.com/swecc-uw/swecc-core/pull/62).
