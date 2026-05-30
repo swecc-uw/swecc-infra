@@ -130,16 +130,16 @@ jobs:
         run: |
           # Same Postgres as server — reuse server_env (RABBIT_HOST/PORT/VHOST + DB_*).
           # Bench MQ uses dedicated BENCH_RABBIT_* creds (see s/ops/rabbitmq.sh in swecc-core).
+          # LLM keys: configs/bench-api.env (values from GitHub secrets below).
           cp configs/server_env.txt configs/bench-api_env.txt
           cat >> configs/bench-api_env.txt << EOF
           ORCH_GATEWAY_PREFIX=${{ secrets.ORCH_GATEWAY_PREFIX }}
           ORCH_PUBLIC_BASE_URL=${{ secrets.ORCH_PUBLIC_BASE_URL }}
-          ORCH_TRACE_DIR=/data/traces
-          ORCH_SANDBOX_URL=http://bench-sandbox:8001
           BENCH_RABBIT_USER=${{ secrets.BENCH_RABBIT_USER }}
           BENCH_RABBIT_PASS=${{ secrets.BENCH_RABBIT_PASS }}
-          ORCH_MQ_ENABLED=1
-          ORCH_MQ_CONSUME_RUNS=1
+          EOF
+          grep -vE '^(ANTHROPIC|OPENAI|GOOGLE)_API_KEY=' configs/bench-api.env | grep -v '^#' | grep -v '^[[:space:]]*$' >> configs/bench-api_env.txt
+          cat >> configs/bench-api_env.txt << EOF
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
@@ -153,9 +153,11 @@ jobs:
 
       - name: Create Bench Worker Config
         run: |
-          cat > configs/bench-worker_env.txt << EOF
-          WORKER_API_URL=http://bench-api:8000
-          WORKER_POLL_INTERVAL=10
+          # Static + LLM key list: configs/bench-worker.env (secret values injected below).
+          mkdir -p configs
+          {
+            grep -vE '^(ANTHROPIC|OPENAI|GOOGLE)_API_KEY=' configs/bench-worker.env | grep -v '^#' | grep -v '^[[:space:]]*$'
+            cat <<EOF
           DB_HOST=${{ secrets.DB_HOST }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_PORT=${{ secrets.DB_PORT }}
@@ -167,12 +169,11 @@ jobs:
           RABBIT_VHOST=${{ secrets.RABBIT_VHOST }}
           BENCH_RABBIT_USER=${{ secrets.BENCH_RABBIT_USER }}
           BENCH_RABBIT_PASS=${{ secrets.BENCH_RABBIT_PASS }}
-          ORCH_MQ_ENABLED=1
-          ORCH_MQ_CONSUME_RUNS=1
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY=${{ secrets.GEMINI_API_KEY }}
           EOF
+          } > configs/bench-worker_env.txt
 
       - name: Extract and prepare configs for comparison
         run: |
