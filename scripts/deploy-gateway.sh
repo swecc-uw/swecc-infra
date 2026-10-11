@@ -175,7 +175,7 @@ verify_local_https() {
 }
 
 verify_dns_points_at_this_host() {
-  if ! command -v curl >/dev/null 2>&1 || ! command -v dig >/dev/null 2>&1; then
+  if ! command -v dig >/dev/null 2>&1; then
     return 0
   fi
   local public_ip dns_ip
@@ -183,7 +183,7 @@ verify_dns_points_at_this_host() {
   dns_ip="$(dig +short api.swecc.org A 2>/dev/null | head -1 || true)"
   log "api.swecc.org DNS A=${dns_ip:-unknown}; this host public IP=${public_ip:-unknown}"
   if [[ -n "$public_ip" && -n "$dns_ip" && "$public_ip" != "$dns_ip" ]]; then
-    die "DNS mismatch: api.swecc.org -> $dns_ip but swarm manager is $public_ip (update Route53 / elastic IP)"
+    log "public A record is not this host; origin check uses the instance IP"
   fi
 }
 
